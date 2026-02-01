@@ -69,7 +69,8 @@ test = [
     "pytest",
     "pytest-cov",
     "pytest-error-for-skips",
-    "ansible-core @ https://github.com/ansible/ansible/archive/devel.tar.gz",
+    "ansible-core ; python_version < '3.11'",
+    "ansible-core @ https://github.com/ansible/ansible/archive/devel.tar.gz ; python_version >= '3.11'",
 ]
 typing = [
     "mypy",

@@ -310,8 +310,9 @@ ANSIBLE_GALAXY_LIST_COLLECTIONS_FAIL_DATA: list[
         b"""{"/foo": {"bar": {},}}""",
         b"",
         0,
-        r"^Error while loading collection list: Illegal trailing comma"
-        r" before end of object: line 1 column 20 \(char 19\)$",
+        r"^Error while loading collection list: (Illegal trailing comma"
+        r" before end of object: line 1 column 20 \(char 19\)|Expecting property"
+        r" name enclosed in double quotes: line 1 column 21 \(char 20\))$",
     ),
     (
         None,
