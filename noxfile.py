@@ -201,6 +201,7 @@ def bump(session: nox.Session):
         "git",
         "tag",
         "-a",
+        "-s",
         "-m",
         f"antsibull-docs-loader {version}",
         "--edit",
