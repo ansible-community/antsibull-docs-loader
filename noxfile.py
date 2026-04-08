@@ -181,7 +181,9 @@ def bump(session: nox.Session):
             str(fragment_file),
             external=True,
         )
-        session.run("git", "commit", "-m", f"Prepare {version}.", external=True)
+        session.run(
+            "git", "commit", "-m", f"Prepare {version}.", "--gpg-sign", external=True
+        )
     session.run("antsibull-changelog", "release")
     session.run(
         "git",
@@ -196,11 +198,14 @@ def bump(session: nox.Session):
         external=True,
     )
     install(session, ".")  # Smoke test
-    session.run("git", "commit", "-m", f"Release {version}.", external=True)
+    session.run(
+        "git", "commit", "-m", f"Release {version}.", "--gpg-sign", external=True
+    )
     session.run(
         "git",
         "tag",
         "-a",
+        "-s",
         "-m",
         f"antsibull-docs-loader {version}",
         "--edit",
@@ -220,4 +225,6 @@ def publish(session: nox.Session):
     version = session.run("hatch", "version", silent=True).strip()
     session.run("hatch", "version", "post")
     session.run("git", "add", "src/antsibull_docs_loader/__init__.py", external=True)
-    session.run("git", "commit", "-m", "Post-release version bump.", external=True)
+    session.run(
+        "git", "commit", "-m", "Post-release version bump.", "--gpg-sign", external=True
+    )
