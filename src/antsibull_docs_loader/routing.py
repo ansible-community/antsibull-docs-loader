@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import os
 import types
 import typing as t
 from collections.abc import Mapping
@@ -18,9 +19,11 @@ from pathlib import Path
 
 from ._yaml import load_yaml_file as _load_yaml_file
 from .ansible import (
+    ALL_PLUGIN_TYPES,
     CORE_DOCUMENTABLE_PLUGIN_TYPES,
     CORE_OTHER_PLUGIN_TYPES,
     EDA_PLUGIN_TYPES,
+    get_plugin_directory,
 )
 
 if t.TYPE_CHECKING:
@@ -55,8 +58,16 @@ class PluginRouting:
 
 
 @dataclasses.dataclass(frozen=True)
+class File:
+    fqcn: str
+    python_file: Path | None
+    docs_candidates: list[Path]
+
+
+@dataclasses.dataclass(frozen=True)
 class CollectionRouting:
     plugin_data: dict[PluginType, dict[str, PluginRouting]]
+    files: dict[PluginType, dict[tuple[str, ...], File]]
 
 
 def _load_removal_data(
@@ -297,6 +308,59 @@ def _load_eda_routing_information(
     )
 
 
+def _get_components(directory: Path, root: Path) -> tuple[str, ...]:
+    comps: list[str] = []
+    while directory != root:
+        comps.append(directory.name)
+        directory = directory.parent
+    return tuple(reversed(comps))
+
+
+def _find_files(
+    collection_info: CollectionInfo,
+) -> dict[PluginType, dict[tuple[str, ...], File]]:
+    result: dict[PluginType, dict[tuple[str, ...], File]] = {}
+    plugin_types = (
+        CORE_DOCUMENTABLE_PLUGIN_TYPES + CORE_OTHER_PLUGIN_TYPES
+        if collection_info.is_ansible_core
+        else ALL_PLUGIN_TYPES
+    )
+    for plugin_type in plugin_types:
+        directory = get_plugin_directory(collection_info, plugin_type)
+        if not directory.is_dir():
+            continue
+        pt_collection: dict[tuple[str, ...], list[Path]] = {}
+        for root, directories, files in os.walk(directory, followlinks=False):
+            root_path = Path(root)
+            root_comps = _get_components(root_path, directory)
+            for file in files:
+                if not file.endswith((".py", ".yml", ".yaml")):
+                    continue
+                if file == "__init__.py":
+                    continue
+                if collection_info.is_ansible_core:
+                    # ansible-core exceptions
+                    if plugin_type == "cache" and file == "base.py":
+                        continue
+                path = root_path / file
+                comps = root_comps + (path.stem,)
+                path_list = pt_collection.get(comps)
+                if path_list is None:
+                    path_list = []
+                    pt_collection[comps] = path_list
+                path_list.append(path)
+        pt_result: dict[tuple[str, ...], File] = {}
+        for comp, paths in pt_collection.items():
+            python_files = [path for path in paths if path.suffix == ".py"]
+            pt_result[comp] = File(
+                fqcn=f"{collection_info.full_name}.{'.'.join(comp)}",
+                python_file=python_files[0] if python_files else None,
+                docs_candidates=sorted(paths),
+            )
+        result[plugin_type] = pt_result
+    return result
+
+
 def load_routing_information(collection_info: CollectionInfo) -> CollectionRouting:
     """
     Load routing information for a single collection.
@@ -305,12 +369,14 @@ def load_routing_information(collection_info: CollectionInfo) -> CollectionRouti
     """
     if collection_info.is_ansible_core:
         return CollectionRouting(
-            plugin_data=_load_core_routing_information(collection_info.path)
+            plugin_data=_load_core_routing_information(collection_info.path),
+            files=_find_files(collection_info),
         )
-    result = {}
-    result.update(_load_collection_routing_information(collection_info))
-    result.update(_load_eda_routing_information(collection_info))
-    return CollectionRouting(plugin_data=result)
+    routing = {}
+    routing.update(_load_collection_routing_information(collection_info))
+    routing.update(_load_eda_routing_information(collection_info))
+    files = _find_files(collection_info)
+    return CollectionRouting(plugin_data=routing, files=files)
 
 
 def collect_routing_information(

@@ -23,6 +23,7 @@ import pytest  # pylint: disable=import-error
 from antsibull_docs_loader.data import CollectionInfo, CollectionInfos
 from antsibull_docs_loader.routing import (
     CollectionRouting,
+    File,
     PluginRouting,
     RemovalData,
     collect_routing_information,
@@ -737,7 +738,7 @@ def test_collect_routing_information(tmp_path: Path) -> None:
 
     ci = CollectionInfos.build([coll])
     ri = collect_routing_information(ci)
-    assert ri == {"foo.bar": CollectionRouting(plugin_data={})}
+    assert ri == {"foo.bar": CollectionRouting(plugin_data={}, files={})}
 
     metadata.write_text("""---
 plugin_routing: foo
@@ -775,13 +776,15 @@ plugin_routing: foo
     def return_ri(ci: CollectionInfo, exc: Exception) -> CollectionRouting | None:
         assert ci is coll
         assert str(exc).endswith(" must be a mapping, got <class 'str'>")
-        return CollectionRouting(plugin_data={"connection": {}})
+        return CollectionRouting(plugin_data={"connection": {}}, files={})
 
     metadata.write_text("""---
 plugin_routing: foo
 """)
     ri = collect_routing_information(ci, handle_broken=return_ri)
-    assert ri == {"foo.bar": CollectionRouting(plugin_data={"connection": {}})}
+    assert ri == {
+        "foo.bar": CollectionRouting(plugin_data={"connection": {}}, files={})
+    }
 
 
 @pytest.fixture(name="routing_info")
@@ -1060,6 +1063,26 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                     ),
                 },
             },
+            files={
+                "module": {
+                    ("foo", "bar", "baz"): File(
+                        fqcn="foo.bar.baz",
+                        python_file=Path("collections/foo/bar/plugins/modules/baz.py"),
+                        docs_candidates=[
+                            Path("collections/foo/bar/plugins/modules/baz.py")
+                        ],
+                    ),
+                    ("foo", "bar", "chain_4"): File(
+                        fqcn="foo.bar.chain_4",
+                        python_file=Path(
+                            "collections/foo/bar/plugins/modules/chain_4.py"
+                        ),
+                        docs_candidates=[
+                            Path("collections/foo/bar/plugins/modules/chain_4.py")
+                        ],
+                    ),
+                },
+            },
         ),
         "bar.baz": CollectionRouting(
             plugin_data={
@@ -1088,6 +1111,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                     ),
                 },
             },
+            files={},
         ),
     }
 
@@ -1593,6 +1617,26 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                     ),
                 },
             },
+            files={
+                "module": {
+                    ("foo", "bar", "baz"): File(
+                        fqcn="foo.bar.baz",
+                        python_file=Path("collections/foo/bar/plugins/modules/baz.py"),
+                        docs_candidates=[
+                            Path("collections/foo/bar/plugins/modules/baz.py")
+                        ],
+                    ),
+                    ("foo", "bar", "chain_4"): File(
+                        fqcn="foo.bar.chain_4",
+                        python_file=Path(
+                            "collections/foo/bar/plugins/modules/chain_4.py"
+                        ),
+                        docs_candidates=[
+                            Path("collections/foo/bar/plugins/modules/chain_4.py")
+                        ],
+                    ),
+                },
+            },
         ),
         "bar.baz": CollectionRouting(
             plugin_data={
@@ -1656,6 +1700,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                     ),
                 },
             },
+            files={},
         ),
     }
 
@@ -1998,6 +2043,26 @@ def test_complete_redirects_for_collection(
                     ),
                 },
             },
+            files={
+                "module": {
+                    ("foo", "bar", "baz"): File(
+                        fqcn="foo.bar.baz",
+                        python_file=Path("collections/foo/bar/plugins/modules/baz.py"),
+                        docs_candidates=[
+                            Path("collections/foo/bar/plugins/modules/baz.py")
+                        ],
+                    ),
+                    ("foo", "bar", "chain_4"): File(
+                        fqcn="foo.bar.chain_4",
+                        python_file=Path(
+                            "collections/foo/bar/plugins/modules/chain_4.py"
+                        ),
+                        docs_candidates=[
+                            Path("collections/foo/bar/plugins/modules/chain_4.py")
+                        ],
+                    ),
+                },
+            },
         ),
         "bar.baz": CollectionRouting(
             plugin_data={
@@ -2061,5 +2126,6 @@ def test_complete_redirects_for_collection(
                     ),
                 },
             },
+            files={},
         ),
     }
