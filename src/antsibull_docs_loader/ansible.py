@@ -39,12 +39,16 @@ CoreOtherPluginType = t.Literal[
     "action", "module_utils", "plugin_utils", "doc_fragments"
 ]
 
+DocumentableObjectType = t.Literal["role",]
+
 EdaPluginType = t.Literal[
     "eda_event_filter",
     "eda_event_source",
 ]
 
-DocumentablePluginType = t.Union[CoreDocumentablePluginType, EdaPluginType]
+DocumentablePluginType = t.Union[
+    CoreDocumentablePluginType, EdaPluginType, DocumentableObjectType
+]
 
 PluginType = t.Union[DocumentablePluginType, CoreOtherPluginType]
 
@@ -74,6 +78,8 @@ CORE_OTHER_PLUGIN_TYPES: tuple[CoreOtherPluginType, ...] = (
     "plugin_utils",
 )
 
+DOCUMENTABLE_OBJECT_TYPES: tuple[DocumentableObjectType, ...] = ("role",)
+
 EDA_PLUGIN_TYPES: tuple[EdaPluginType, ...] = (
     "eda_event_filter",
     "eda_event_source",
@@ -85,7 +91,9 @@ _EDA_DIRECTORIES: Mapping[EdaPluginType, str] = {
 }
 
 ALL_DOCUMENTABLE_PLUGIN_TYPES: tuple[DocumentablePluginType, ...] = tuple(
-    sorted(CORE_DOCUMENTABLE_PLUGIN_TYPES + EDA_PLUGIN_TYPES)  # type: ignore
+    sorted(
+        CORE_DOCUMENTABLE_PLUGIN_TYPES + DOCUMENTABLE_OBJECT_TYPES + EDA_PLUGIN_TYPES
+    )  # type: ignore
 )
 
 ALL_PLUGIN_TYPES: tuple[PluginType, ...] = tuple(
@@ -111,6 +119,8 @@ def get_plugin_directory(collection: CollectionInfo, plugin_type: PluginType) ->
     ):
         return collection.path / "plugins" / plugin_type
     if not collection.is_ansible_core:
+        if plugin_type in DOCUMENTABLE_OBJECT_TYPES:
+            return collection.path / f"{plugin_type}s"
         directory: str | None = _EDA_DIRECTORIES.get(plugin_type)  # type: ignore
         if directory is not None:
             return collection.path / directory
@@ -125,11 +135,13 @@ def get_plugin_directory(collection: CollectionInfo, plugin_type: PluginType) ->
 __all__ = (
     "CoreDocumentablePluginType",
     "CoreOtherPluginType",
+    "DocumentableObjectType",
     "EdaPluginType",
     "DocumentablePluginType",
     "PluginType",
     "CORE_DOCUMENTABLE_PLUGIN_TYPES",
     "CORE_OTHER_PLUGIN_TYPES",
+    "DOCUMENTABLE_OBJECT_TYPES",
     "EDA_PLUGIN_TYPES",
     "ALL_DOCUMENTABLE_PLUGIN_TYPES",
     "ALL_PLUGIN_TYPES",

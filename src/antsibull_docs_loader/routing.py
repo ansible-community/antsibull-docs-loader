@@ -22,6 +22,7 @@ from .ansible import (
     ALL_PLUGIN_TYPES,
     CORE_DOCUMENTABLE_PLUGIN_TYPES,
     CORE_OTHER_PLUGIN_TYPES,
+    DOCUMENTABLE_OBJECT_TYPES,
     EDA_PLUGIN_TYPES,
     get_plugin_directory,
 )
@@ -245,6 +246,8 @@ def _load_routing_information(
 def _get_real_plugin_type_name(name: str) -> PluginType | None:
     if name == "modules":
         return "module"
+    if name in DOCUMENTABLE_OBJECT_TYPES:
+        return None
     if name in CORE_DOCUMENTABLE_PLUGIN_TYPES:
         return name  # type: ignore
     if name in CORE_OTHER_PLUGIN_TYPES:
@@ -316,6 +319,75 @@ def _get_components(directory: Path, root: Path) -> tuple[str, ...]:
     return tuple(reversed(comps))
 
 
+def _extract_result(
+    pt_collection: dict[tuple[str, ...], list[Path]],
+    *,
+    collection_name: str,
+) -> dict[tuple[str, ...], File]:
+    pt_result: dict[tuple[str, ...], File] = {}
+    for comp, paths in pt_collection.items():
+        python_files = [path for path in paths if path.suffix == ".py"]
+        pt_result[comp] = File(
+            fqcn=f"{collection_name}.{'.'.join(comp)}",
+            python_file=python_files[0] if python_files else None,
+            docs_candidates=sorted(paths),
+        )
+    return pt_result
+
+
+def _add(
+    collection: dict[tuple[str, ...], list[Path]], *, comps: tuple[str, ...], path: Path
+) -> None:
+    path_list = collection.get(comps)
+    if path_list is None:
+        path_list = []
+        collection[comps] = path_list
+    path_list.append(path)
+
+
+def _find_roles(
+    *,
+    collection_info: CollectionInfo,
+    directory: Path,
+) -> dict[tuple[str, ...], File]:
+    pt_collection: dict[tuple[str, ...], list[Path]] = {}
+    for entry in directory.iterdir():
+        if not entry.is_dir():
+            continue
+        argspec = entry / "meta" / "argument_specs.yml"
+        if not argspec.is_file():
+            continue
+        _add(pt_collection, comps=(entry.name,), path=argspec)
+    return _extract_result(pt_collection, collection_name=collection_info.full_name)
+
+
+def _find_regular_files(
+    *,
+    collection_info: CollectionInfo,
+    directory: Path,
+    plugin_type: PluginType,
+) -> dict[tuple[str, ...], File]:
+    pt_collection: dict[tuple[str, ...], list[Path]] = {}
+    for root, _directories, files in os.walk(directory, followlinks=False):
+        root_path = Path(root)
+        root_comps = _get_components(root_path, directory)
+        for file in files:
+            if not file.endswith((".py", ".yml", ".yaml")):
+                continue
+            if file == "__init__.py":
+                continue
+            if collection_info.is_ansible_core:
+                # ansible-core exceptions
+                if plugin_type == "cache" and file == "base.py":
+                    continue
+            path = root_path / file
+            name = path.stem
+            if collection_info.is_ansible_core and name.startswith("_"):
+                name = name[1:]
+            _add(pt_collection, comps=root_comps + (name,), path=path)
+    return _extract_result(pt_collection, collection_name=collection_info.full_name)
+
+
 def _find_files(
     collection_info: CollectionInfo,
 ) -> dict[PluginType, dict[tuple[str, ...], File]]:
@@ -329,35 +401,17 @@ def _find_files(
         directory = get_plugin_directory(collection_info, plugin_type)
         if not directory.is_dir():
             continue
-        pt_collection: dict[tuple[str, ...], list[Path]] = {}
-        for root, directories, files in os.walk(directory, followlinks=False):
-            root_path = Path(root)
-            root_comps = _get_components(root_path, directory)
-            for file in files:
-                if not file.endswith((".py", ".yml", ".yaml")):
-                    continue
-                if file == "__init__.py":
-                    continue
-                if collection_info.is_ansible_core:
-                    # ansible-core exceptions
-                    if plugin_type == "cache" and file == "base.py":
-                        continue
-                path = root_path / file
-                comps = root_comps + (path.stem,)
-                path_list = pt_collection.get(comps)
-                if path_list is None:
-                    path_list = []
-                    pt_collection[comps] = path_list
-                path_list.append(path)
-        pt_result: dict[tuple[str, ...], File] = {}
-        for comp, paths in pt_collection.items():
-            python_files = [path for path in paths if path.suffix == ".py"]
-            pt_result[comp] = File(
-                fqcn=f"{collection_info.full_name}.{'.'.join(comp)}",
-                python_file=python_files[0] if python_files else None,
-                docs_candidates=sorted(paths),
+        if plugin_type == "role":
+            result[plugin_type] = _find_roles(
+                collection_info=collection_info,
+                directory=directory,
             )
-        result[plugin_type] = pt_result
+        else:
+            result[plugin_type] = _find_regular_files(
+                collection_info=collection_info,
+                directory=directory,
+                plugin_type=plugin_type,
+            )
     return result
 
 

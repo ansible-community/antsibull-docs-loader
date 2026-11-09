@@ -139,6 +139,7 @@ plugin_routing:
     loop_w_depr:
       redirect: ansible.builtin.loop_w_depr
       deprecation: {}
+  role: 42  # this should be ignored anyway
 import_redirection:
   ansible.module_utils.formerly_core:
     redirect: ansible_collections.testns.testcoll.plugins.module_utils.base
@@ -560,6 +561,137 @@ def test_load_routing_information_core_fail(
         load_routing_information(core)
 
 
+def test_load_routing_information_core_files(tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    metadata = config_dir / "ansible_builtin_runtime.yml"
+    metadata.write_text("")
+    core = CollectionInfo(
+        path=tmp_path,
+        namespace="ansible",
+        name="builtin",
+        full_name="ansible.builtin",
+        version="2.20.1",
+        is_ansible_core=True,
+    )
+
+    plugins = tmp_path / "plugins"
+    plugins.mkdir()
+
+    (plugins / "baz.py").write_text("")
+
+    caches = plugins / "cache"
+    caches.mkdir()
+
+    (caches / "base.py").write_text("")
+
+    (caches / "foocache.py").write_text("")
+
+    filters = plugins / "filter"
+    filters.mkdir()
+
+    (filters / "foo.py").write_text("")
+
+    (filters / "bar.py").write_text("")
+    (filters / "bar.yml").write_text("")
+
+    (filters / "bam.yml").write_text("")
+    (filters / "bam.yaml").write_text("")
+
+    modules = tmp_path / "modules"
+    modules.mkdir()
+
+    (modules / "foobar.txt").write_text("")
+
+    (modules / "__init__.py").write_text("")
+
+    (modules / "bar.py").write_text("")
+
+    (modules / "_meh.py").write_text("")
+    (modules / "meh.yml").write_text("")
+    (modules / "_meh.yaml").write_text("")
+
+    modules_subdir = modules / "subdir"
+    modules_subdir.mkdir()
+
+    (modules_subdir / "foo.py").write_text("")
+
+    roles = tmp_path / "roles"
+    roles.mkdir()
+
+    (roles / "foo").write_text("")
+
+    role_meh = roles / "meh"
+    role_meh.mkdir()
+    role_meh_meta = role_meh / "meta"
+    role_meh_meta.mkdir()
+    (role_meh_meta / "argument_specs.yml").write_text("")
+
+    ri = load_routing_information(core)
+    assert ri == CollectionRouting(
+        plugin_data={},
+        files={
+            "cache": {
+                ("foocache",): File(
+                    fqcn="ansible.builtin.foocache",
+                    python_file=caches / "foocache.py",
+                    docs_candidates=[
+                        caches / "foocache.py",
+                    ],
+                ),
+            },
+            "filter": {
+                ("bam",): File(
+                    fqcn="ansible.builtin.bam",
+                    python_file=None,
+                    docs_candidates=[
+                        filters / "bam.yaml",
+                        filters / "bam.yml",
+                    ],
+                ),
+                ("bar",): File(
+                    fqcn="ansible.builtin.bar",
+                    python_file=filters / "bar.py",
+                    docs_candidates=[
+                        filters / "bar.py",
+                        filters / "bar.yml",
+                    ],
+                ),
+                ("foo",): File(
+                    fqcn="ansible.builtin.foo",
+                    python_file=filters / "foo.py",
+                    docs_candidates=[
+                        filters / "foo.py",
+                    ],
+                ),
+            },
+            "module": {
+                ("meh",): File(
+                    fqcn="ansible.builtin.meh",
+                    python_file=modules / "_meh.py",
+                    docs_candidates=[
+                        modules / "_meh.py",
+                        modules / "_meh.yaml",
+                        modules / "meh.yml",
+                    ],
+                ),
+                ("bar",): File(
+                    fqcn="ansible.builtin.bar",
+                    python_file=modules / "bar.py",
+                    docs_candidates=[
+                        modules / "bar.py",
+                    ],
+                ),
+                ("subdir", "foo"): File(
+                    fqcn="ansible.builtin.subdir.foo",
+                    python_file=modules_subdir / "foo.py",
+                    docs_candidates=[modules_subdir / "foo.py"],
+                ),
+            },
+        },
+    )
+
+
 def test_load_routing_information_collection(tmp_path: Path) -> None:
     coll = CollectionInfo(
         path=tmp_path,
@@ -784,6 +916,125 @@ plugin_routing: foo
     ri = collect_routing_information(ci, handle_broken=return_ri)
     assert ri == {
         "foo.bar": CollectionRouting(plugin_data={"connection": {}}, files={})
+    }
+
+
+def test_collect_routing_information_files(tmp_path: Path) -> None:
+    coll = CollectionInfo(
+        path=tmp_path,
+        namespace="foo",
+        name="bar",
+        full_name="foo.bar",
+        version=None,
+        is_ansible_core=False,
+    )
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+    metadata = meta_dir / "runtime.yml"
+    metadata.write_text("")
+
+    plugins = tmp_path / "plugins"
+    plugins.mkdir()
+
+    (plugins / "baz.py").write_text("")
+
+    filters = plugins / "filter"
+    filters.mkdir()
+
+    (filters / "foo.py").write_text("")
+
+    (filters / "bar.py").write_text("")
+    (filters / "bar.yml").write_text("")
+
+    (filters / "bam.yml").write_text("")
+    (filters / "bam.yaml").write_text("")
+
+    modules = plugins / "modules"
+    modules.mkdir()
+
+    (modules / "foobar.txt").write_text("")
+
+    (modules / "__init__.py").write_text("")
+
+    (modules / "bar.py").write_text("")
+
+    modules_subdir = modules / "subdir"
+    modules_subdir.mkdir()
+
+    (modules_subdir / "foo.py").write_text("")
+
+    roles = tmp_path / "roles"
+    roles.mkdir()
+
+    (roles / "foo").write_text("")
+
+    role_meh = roles / "meh"
+    role_meh.mkdir()
+    role_meh_meta = role_meh / "meta"
+    role_meh_meta.mkdir()
+    (role_meh_meta / "argument_specs.yml").write_text("")
+
+    role_moo = roles / "moo"
+    role_moo.mkdir()
+    role_moo_meta = role_moo / "meta"
+    role_moo_meta.mkdir()
+
+    ci = CollectionInfos.build([coll])
+    ri = collect_routing_information(ci)
+    assert ri == {
+        "foo.bar": CollectionRouting(
+            plugin_data={},
+            files={
+                "filter": {
+                    ("bam",): File(
+                        fqcn="foo.bar.bam",
+                        python_file=None,
+                        docs_candidates=[
+                            filters / "bam.yaml",
+                            filters / "bam.yml",
+                        ],
+                    ),
+                    ("bar",): File(
+                        fqcn="foo.bar.bar",
+                        python_file=filters / "bar.py",
+                        docs_candidates=[
+                            filters / "bar.py",
+                            filters / "bar.yml",
+                        ],
+                    ),
+                    ("foo",): File(
+                        fqcn="foo.bar.foo",
+                        python_file=filters / "foo.py",
+                        docs_candidates=[
+                            filters / "foo.py",
+                        ],
+                    ),
+                },
+                "module": {
+                    ("bar",): File(
+                        fqcn="foo.bar.bar",
+                        python_file=modules / "bar.py",
+                        docs_candidates=[
+                            modules / "bar.py",
+                        ],
+                    ),
+                    ("subdir", "foo"): File(
+                        fqcn="foo.bar.subdir.foo",
+                        python_file=modules_subdir / "foo.py",
+                        docs_candidates=[modules_subdir / "foo.py"],
+                    ),
+                },
+                "role": {
+                    ("meh",): File(
+                        fqcn="foo.bar.meh",
+                        python_file=None,
+                        docs_candidates=[
+                            role_meh_meta / "argument_specs.yml",
+                        ],
+                    ),
+                },
+            },
+        )
     }
 
 

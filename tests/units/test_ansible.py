@@ -24,6 +24,7 @@ from antsibull_docs_loader.ansible import (
     ALL_PLUGIN_TYPES,
     CORE_DOCUMENTABLE_PLUGIN_TYPES,
     CORE_OTHER_PLUGIN_TYPES,
+    DOCUMENTABLE_OBJECT_TYPES,
     EDA_PLUGIN_TYPES,
     CoreDocumentablePluginType,
     CoreOtherPluginType,
@@ -95,7 +96,7 @@ def test_ALL_DOCUMENTABLE_PLUGIN_TYPES() -> None:
     # CORE_DOCUMENTABLE_PLUGIN_TYPES + EDA_PLUGIN_TYPES
     assert len(ALL_DOCUMENTABLE_PLUGIN_TYPES) == len(
         CORE_DOCUMENTABLE_PLUGIN_TYPES
-    ) + len(EDA_PLUGIN_TYPES)
+    ) + len(DOCUMENTABLE_OBJECT_TYPES) + len(EDA_PLUGIN_TYPES)
     assert all(
         plugin_type in ALL_DOCUMENTABLE_PLUGIN_TYPES
         for plugin_type in CORE_DOCUMENTABLE_PLUGIN_TYPES
