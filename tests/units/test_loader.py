@@ -503,7 +503,8 @@ def test_load_docs_from_role_argspec(
 
 def test_load_docs_from_python_doc_fragment_contents() -> None:
     with pytest.raises(
-        ValueError, match="^Python parsing failed: '{' was never closed"
+        ValueError,
+        match="^Python parsing failed: ('{' was never closed|unexpected EOF while parsing)",
     ):
         load_docs_from_python_doc_fragment_contents("foo = {")
 
@@ -536,7 +537,10 @@ def test_load_docs_from_python_doc_fragment_file(tmp_path: Path) -> None:
     file.write_text("foo = {")
     with pytest.raises(
         ValueError,
-        match="^Error while parsing .*/foo.py: Python parsing failed: '{' was never closed",
+        match=(
+            "^Error while parsing .*/foo.py: Python parsing failed:"
+            " ('{' was never closed|unexpected EOF while parsing)"
+        ),
     ):
         load_docs_from_python_doc_fragment_file(file)
 
