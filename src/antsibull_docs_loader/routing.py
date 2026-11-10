@@ -56,6 +56,7 @@ class PluginRouting:
     redirect_error: str | None
     deprecation: RemovalData | None
     tombstone: RemovalData | None
+    redirect_by_symlink: bool
 
 
 @dataclasses.dataclass(frozen=True)
@@ -136,6 +137,7 @@ def _parse_plugin_data(
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         )
     if not isinstance(plugin_data, Mapping):
         raise ValueError(
@@ -193,6 +195,7 @@ def _parse_plugin_data(
         redirect_error=redirect_error,
         deprecation=deprecation,
         tombstone=tombstone,
+        redirect_by_symlink=False,
     )
 
 
@@ -361,11 +364,74 @@ def _find_roles(
     return _extract_result(pt_collection, collection_name=collection_info.full_name)
 
 
+def _get_name(path: Path, *, collection_info: CollectionInfo) -> str:
+    name = path.stem
+    if collection_info.is_ansible_core and name.startswith("_"):
+        name = name[1:]
+    return name
+
+
+def _process_symlink(
+    *,
+    path: Path,
+    comps: tuple[str, ...],
+    collection_info: CollectionInfo,
+    directory: Path,
+    plugin_type: PluginType,
+    routing: dict[PluginType, dict[str, PluginRouting]],
+) -> None:
+    link = path.readlink()
+    if link.is_absolute():
+        # Ignore absolute links. These should never appear in a collection.
+        return
+    destination = path.parent / link
+    if (
+        not destination.name.endswith(".py")
+        or not destination.is_file()
+        or not destination.parent.is_relative_to(directory)
+    ):
+        # If the link points outside the plugin type's base dir,
+        # or does not point to a Python file, ignore it.
+        return
+    cname = ".".join(comps)
+    dname = _get_name(destination, collection_info=collection_info)
+    dfqcn = ".".join(
+        (collection_info.namespace, collection_info.name)
+        + _get_components(destination.parent, directory)
+        + (dname,)
+    )
+    if plugin_type not in routing:
+        routing[plugin_type] = {}
+    current = routing[plugin_type].get(cname)
+    if current is None:
+        # Create new routing entry.
+        routing[plugin_type][cname] = PluginRouting(
+            action_plugin=None,
+            redirect=dfqcn,
+            redirect_chain=None,
+            redirect_deprecations=None,
+            redirect_tombstone=False,
+            redirect_dead_end=False,
+            redirect_error=None,
+            deprecation=None,
+            tombstone=None,
+            redirect_by_symlink=True,
+        )
+    elif current.redirect is None:
+        print(path, "XXX")
+        routing[plugin_type][cname] = dataclasses.replace(
+            current, redirect=dfqcn, redirect_by_symlink=True
+        )
+    else:
+        print(path, "YYY", current)
+
+
 def _find_regular_files(
     *,
     collection_info: CollectionInfo,
     directory: Path,
     plugin_type: PluginType,
+    routing: dict[PluginType, dict[str, PluginRouting]],
 ) -> dict[tuple[str, ...], File]:
     pt_collection: dict[tuple[str, ...], list[Path]] = {}
     for root, _directories, files in os.walk(directory, followlinks=False):
@@ -376,20 +442,31 @@ def _find_regular_files(
                 continue
             if file == "__init__.py":
                 continue
+            path = root_path / file
+            name = _get_name(path, collection_info=collection_info)
+            comps = root_comps + (name,)
+            if path.is_symlink():
+                _process_symlink(
+                    path=path,
+                    comps=comps,
+                    collection_info=collection_info,
+                    directory=directory,
+                    plugin_type=plugin_type,
+                    routing=routing,
+                )
+                continue
             if collection_info.is_ansible_core:
                 # ansible-core exceptions
                 if plugin_type == "cache" and file == "base.py":
                     continue
-            path = root_path / file
-            name = path.stem
-            if collection_info.is_ansible_core and name.startswith("_"):
-                name = name[1:]
-            _add(pt_collection, comps=root_comps + (name,), path=path)
+            _add(pt_collection, comps=comps, path=path)
     return _extract_result(pt_collection, collection_name=collection_info.full_name)
 
 
 def _find_files(
     collection_info: CollectionInfo,
+    *,
+    routing: dict[PluginType, dict[str, PluginRouting]],
 ) -> dict[PluginType, dict[tuple[str, ...], File]]:
     result: dict[PluginType, dict[tuple[str, ...], File]] = {}
     plugin_types = (
@@ -411,6 +488,7 @@ def _find_files(
                 collection_info=collection_info,
                 directory=directory,
                 plugin_type=plugin_type,
+                routing=routing,
             )
     return result
 
@@ -421,15 +499,13 @@ def load_routing_information(collection_info: CollectionInfo) -> CollectionRouti
 
     Note that most of the routing information is not yet present.
     """
-    if collection_info.is_ansible_core:
-        return CollectionRouting(
-            plugin_data=_load_core_routing_information(collection_info.path),
-            files=_find_files(collection_info),
-        )
     routing = {}
-    routing.update(_load_collection_routing_information(collection_info))
-    routing.update(_load_eda_routing_information(collection_info))
-    files = _find_files(collection_info)
+    if collection_info.is_ansible_core:
+        routing.update(_load_core_routing_information(collection_info.path))
+    else:
+        routing.update(_load_collection_routing_information(collection_info))
+        routing.update(_load_eda_routing_information(collection_info))
+    files = _find_files(collection_info, routing=routing)
     return CollectionRouting(plugin_data=routing, files=files)
 
 
@@ -535,6 +611,7 @@ def _complete_redirect(  # noqa: C901 # pylint: disable=too-many-branches
                         redirect_error=redirect_error,
                         deprecation=plugin_plugin_data.deprecation,
                         tombstone=plugin_plugin_data.tombstone,
+                        redirect_by_symlink=False,
                     )
                     if plugin_owner:
                         plugin_owner[plugin_plugin_name] = new_plugin_data
@@ -615,6 +692,7 @@ def _complete_redirect(  # noqa: C901 # pylint: disable=too-many-branches
                 redirect_error=redirect_error,
                 deprecation=plugin_plugin_data.deprecation,
                 tombstone=plugin_plugin_data.tombstone,
+                redirect_by_symlink=False,
             )
             if plugin_owner:
                 plugin_owner[plugin_plugin_name] = new_plugin_data

@@ -175,6 +175,7 @@ import_redirection:
                 removal_date=datetime.date(2030, 1, 1),
             ),
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["module"] == {
@@ -192,6 +193,7 @@ import_redirection:
                 removal_version="1.2.3",
                 removal_date="2030-01-01",
             ),
+            redirect_by_symlink=False,
         ),
         "uses_redirected_action": PluginRouting(
             action_plugin=None,
@@ -203,6 +205,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "foo": PluginRouting(
             action_plugin=None,
@@ -214,6 +217,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "bar": PluginRouting(
             action_plugin=None,
@@ -225,6 +229,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "meh": PluginRouting(
             action_plugin="foo",
@@ -236,6 +241,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["module_utils"] == {
@@ -253,6 +259,7 @@ import_redirection:
                 removal_date=None,
             ),
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "sub1.sub2.formerly_core": PluginRouting(
             action_plugin=None,
@@ -268,6 +275,7 @@ import_redirection:
                 removal_version=None,
                 removal_date=None,
             ),
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["action"] == {
@@ -285,6 +293,7 @@ import_redirection:
                 removal_version=None,
                 removal_date=None,
             ),
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["filter"] == {
@@ -302,6 +311,7 @@ import_redirection:
                 removal_date=datetime.date(2030, 1, 1),
             ),
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "formerly_core_masked_filter": PluginRouting(
             action_plugin=None,
@@ -313,6 +323,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["inventory"] == {
@@ -326,6 +337,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["lookup"] == {
@@ -339,6 +351,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["shell"] == {
@@ -352,6 +365,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["test"] == {
@@ -365,6 +379,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "formerly_core_masked_test": PluginRouting(
             action_plugin=None,
@@ -376,6 +391,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["test"] == {
@@ -389,6 +405,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "formerly_core_masked_test": PluginRouting(
             action_plugin=None,
@@ -400,6 +417,7 @@ import_redirection:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["netconf"] == {
@@ -413,6 +431,7 @@ import_redirection:
             redirect_error="Detected circular redirect",
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "loop_w_depr": PluginRouting(
             action_plugin=None,
@@ -440,6 +459,7 @@ import_redirection:
                 removal_date=None,
             ),
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
 
@@ -611,6 +631,22 @@ def test_load_routing_information_core_files(tmp_path: Path) -> None:
     (modules / "meh.yml").write_text("")
     (modules / "_meh.yaml").write_text("")
 
+    (modules / "foobar1.py").symlink_to("_meh.py")
+
+    (modules / "_foobar2.py").symlink_to("_meh.py")
+
+    (modules / "foobar3.py").symlink_to("bar.py")
+
+    (modules / "_foobar4.py").symlink_to("bar.py")
+
+    (modules / "_foobar5.py").symlink_to("/foo.py")
+
+    (modules / "_foobar6.py").symlink_to("../foo.py")
+
+    (modules / "_foobar7.py").symlink_to("foo.yml")
+
+    (modules / "_foobar8.py").symlink_to("subdir")
+
     modules_subdir = modules / "subdir"
     modules_subdir.mkdir()
 
@@ -629,7 +665,58 @@ def test_load_routing_information_core_files(tmp_path: Path) -> None:
 
     ri = load_routing_information(core)
     assert ri == CollectionRouting(
-        plugin_data={},
+        plugin_data={
+            "module": {
+                "foobar1": PluginRouting(
+                    action_plugin=None,
+                    redirect="ansible.builtin.meh",
+                    redirect_chain=None,
+                    redirect_deprecations=None,
+                    redirect_tombstone=False,
+                    redirect_dead_end=False,
+                    redirect_error=None,
+                    deprecation=None,
+                    tombstone=None,
+                    redirect_by_symlink=True,
+                ),
+                "foobar2": PluginRouting(
+                    action_plugin=None,
+                    redirect="ansible.builtin.meh",
+                    redirect_chain=None,
+                    redirect_deprecations=None,
+                    redirect_tombstone=False,
+                    redirect_dead_end=False,
+                    redirect_error=None,
+                    deprecation=None,
+                    tombstone=None,
+                    redirect_by_symlink=True,
+                ),
+                "foobar3": PluginRouting(
+                    action_plugin=None,
+                    redirect="ansible.builtin.bar",
+                    redirect_chain=None,
+                    redirect_deprecations=None,
+                    redirect_tombstone=False,
+                    redirect_dead_end=False,
+                    redirect_error=None,
+                    deprecation=None,
+                    tombstone=None,
+                    redirect_by_symlink=True,
+                ),
+                "foobar4": PluginRouting(
+                    action_plugin=None,
+                    redirect="ansible.builtin.bar",
+                    redirect_chain=None,
+                    redirect_deprecations=None,
+                    redirect_tombstone=False,
+                    redirect_dead_end=False,
+                    redirect_error=None,
+                    deprecation=None,
+                    tombstone=None,
+                    redirect_by_symlink=True,
+                ),
+            },
+        },
         files={
             "cache": {
                 ("foocache",): File(
@@ -773,6 +860,7 @@ plugin_routing:
                 removal_version="1.2.3",
                 removal_date="2030-01-01",
             ),
+            redirect_by_symlink=False,
         ),
         "uses_redirected_action": PluginRouting(
             action_plugin=None,
@@ -784,6 +872,7 @@ plugin_routing:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "foo": PluginRouting(
             action_plugin=None,
@@ -795,6 +884,7 @@ plugin_routing:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "bar": PluginRouting(
             action_plugin=None,
@@ -806,6 +896,7 @@ plugin_routing:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
         "meh": PluginRouting(
             action_plugin="foo",
@@ -817,6 +908,7 @@ plugin_routing:
             redirect_error=None,
             deprecation=None,
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["eda_event_source"] == {
@@ -834,6 +926,7 @@ plugin_routing:
                 removal_version="2.0.0",
                 removal_date=None,
             ),
+            redirect_by_symlink=False,
         ),
     }
     assert routing_info.plugin_data["eda_event_filter"] == {
@@ -851,6 +944,7 @@ plugin_routing:
                 removal_date=None,
             ),
             tombstone=None,
+            redirect_by_symlink=False,
         ),
     }
 
@@ -931,7 +1025,21 @@ def test_collect_routing_information_files(tmp_path: Path) -> None:
     meta_dir = tmp_path / "meta"
     meta_dir.mkdir()
     metadata = meta_dir / "runtime.yml"
-    metadata.write_text("")
+    metadata.write_text("""---
+plugin_routing:
+  modules:
+    foobar2:
+      redirect: ansible.builtin.ping
+      deprecation:
+        warning_text: foo
+        removal_version: 1.2.3
+        removal_date: "2030-01-01"
+    _foobar1:
+      deprecation:
+        warning_text: foo
+        removal_version: 1.2.3
+        removal_date: "2030-01-01"
+""")
 
     plugins = tmp_path / "plugins"
     plugins.mkdir()
@@ -958,6 +1066,12 @@ def test_collect_routing_information_files(tmp_path: Path) -> None:
 
     (modules / "bar.py").write_text("")
 
+    (modules / "_foobar1.py").symlink_to("bar.py")
+
+    (modules / "foobar2.py").symlink_to("bar.py")
+
+    (modules / "foobar3.py").symlink_to("_foobar1.py")
+
     modules_subdir = modules / "subdir"
     modules_subdir.mkdir()
 
@@ -983,7 +1097,54 @@ def test_collect_routing_information_files(tmp_path: Path) -> None:
     ri = collect_routing_information(ci)
     assert ri == {
         "foo.bar": CollectionRouting(
-            plugin_data={},
+            plugin_data={
+                "module": {
+                    "_foobar1": PluginRouting(
+                        action_plugin=None,
+                        redirect="foo.bar.bar",
+                        redirect_chain=None,
+                        redirect_deprecations=None,
+                        redirect_tombstone=False,
+                        redirect_dead_end=False,
+                        redirect_error=None,
+                        deprecation=RemovalData(
+                            warning_text="foo",
+                            removal_version="1.2.3",
+                            removal_date="2030-01-01",
+                        ),
+                        tombstone=None,
+                        redirect_by_symlink=True,
+                    ),
+                    "foobar2": PluginRouting(
+                        action_plugin=None,
+                        redirect="ansible.builtin.ping",
+                        redirect_chain=None,
+                        redirect_deprecations=None,
+                        redirect_tombstone=False,
+                        redirect_dead_end=False,
+                        redirect_error=None,
+                        deprecation=RemovalData(
+                            warning_text="foo",
+                            removal_version="1.2.3",
+                            removal_date="2030-01-01",
+                        ),
+                        tombstone=None,
+                        redirect_by_symlink=False,
+                    ),
+                    "foobar3": PluginRouting(
+                        action_plugin=None,
+                        redirect="foo.bar._foobar1",
+                        redirect_chain=None,
+                        redirect_deprecations=None,
+                        redirect_tombstone=False,
+                        redirect_dead_end=False,
+                        redirect_error=None,
+                        deprecation=None,
+                        tombstone=None,
+                        redirect_by_symlink=True,
+                    ),
+                },
+            },
             files={
                 "filter": {
                     ("bam",): File(
@@ -1054,6 +1215,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "self_loop": PluginRouting(
                         action_plugin=None,
@@ -1065,6 +1227,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "pre_loop_1": PluginRouting(
                         action_plugin=None,
@@ -1076,6 +1239,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "pre_loop_2": PluginRouting(
                         action_plugin=None,
@@ -1091,6 +1255,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_1": PluginRouting(
                         action_plugin=None,
@@ -1106,6 +1271,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_2": PluginRouting(
                         action_plugin=None,
@@ -1117,6 +1283,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_3": PluginRouting(
                         action_plugin=None,
@@ -1132,6 +1299,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_1": PluginRouting(
                         action_plugin=None,
@@ -1147,6 +1315,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_2": PluginRouting(
                         action_plugin=None,
@@ -1158,6 +1327,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_3": PluginRouting(
                         action_plugin=None,
@@ -1173,6 +1343,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_4": PluginRouting(
                         action_plugin=None,
@@ -1184,6 +1355,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_1": PluginRouting(
                         action_plugin=None,
@@ -1195,6 +1367,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_2": PluginRouting(
                         action_plugin=None,
@@ -1206,6 +1379,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_3": PluginRouting(
                         action_plugin=None,
@@ -1217,6 +1391,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
                 "lookup": {
@@ -1230,6 +1405,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_2": PluginRouting(
                         action_plugin=None,
@@ -1241,6 +1417,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_3": PluginRouting(
                         action_plugin=None,
@@ -1252,6 +1429,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_1": PluginRouting(
                         action_plugin=None,
@@ -1263,6 +1441,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_2": PluginRouting(
                         action_plugin=None,
@@ -1274,6 +1453,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_3": PluginRouting(
                         action_plugin=None,
@@ -1289,6 +1469,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                             removal_version=None,
                             removal_date=None,
                         ),
+                        redirect_by_symlink=False,
                     ),
                     "broken_chain_1": PluginRouting(
                         action_plugin=None,
@@ -1300,6 +1481,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "broken_chain_2": PluginRouting(
                         action_plugin=None,
@@ -1311,6 +1493,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
             },
@@ -1348,6 +1531,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_2": PluginRouting(
                         action_plugin=None,
@@ -1359,6 +1543,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
             },
@@ -1383,6 +1568,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "self_loop": PluginRouting(
                         action_plugin=None,
@@ -1397,6 +1583,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "pre_loop_1": PluginRouting(
                         action_plugin=None,
@@ -1440,6 +1627,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "pre_loop_2": PluginRouting(
                         action_plugin=None,
@@ -1486,6 +1674,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_1": PluginRouting(
                         action_plugin=None,
@@ -1523,6 +1712,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_2": PluginRouting(
                         action_plugin=None,
@@ -1557,6 +1747,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_3": PluginRouting(
                         action_plugin=None,
@@ -1594,6 +1785,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_1": PluginRouting(
                         action_plugin=None,
@@ -1631,6 +1823,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_2": PluginRouting(
                         action_plugin=None,
@@ -1655,6 +1848,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_3": PluginRouting(
                         action_plugin=None,
@@ -1682,6 +1876,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_4": PluginRouting(
                         action_plugin=None,
@@ -1693,6 +1888,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_1": PluginRouting(
                         action_plugin=None,
@@ -1709,6 +1905,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Found redirect to unknown collection outside.here",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_2": PluginRouting(
                         action_plugin=None,
@@ -1724,6 +1921,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Found redirect to unknown collection outside.here",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_3": PluginRouting(
                         action_plugin=None,
@@ -1738,6 +1936,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Found redirect to unknown collection outside.here",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
                 "lookup": {
@@ -1756,6 +1955,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_2": PluginRouting(
                         action_plugin=None,
@@ -1771,6 +1971,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_3": PluginRouting(
                         action_plugin=None,
@@ -1782,6 +1983,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_1": PluginRouting(
                         action_plugin=None,
@@ -1805,6 +2007,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_2": PluginRouting(
                         action_plugin=None,
@@ -1825,6 +2028,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_3": PluginRouting(
                         action_plugin=None,
@@ -1840,6 +2044,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                             removal_version=None,
                             removal_date=None,
                         ),
+                        redirect_by_symlink=False,
                     ),
                     "broken_chain_1": PluginRouting(
                         action_plugin=None,
@@ -1854,6 +2059,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Found redirect to non-FQCN this-is-not-a-fqcn",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "broken_chain_2": PluginRouting(
                         action_plugin=None,
@@ -1865,6 +2071,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Found redirect to non-FQCN this-is-not-a-fqcn",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
             },
@@ -1924,6 +2131,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_2": PluginRouting(
                         action_plugin=None,
@@ -1948,6 +2156,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
             },
@@ -1978,6 +2187,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "self_loop": PluginRouting(
                         action_plugin=None,
@@ -1989,6 +2199,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "pre_loop_1": PluginRouting(
                         action_plugin=None,
@@ -2000,6 +2211,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "pre_loop_2": PluginRouting(
                         action_plugin=None,
@@ -2015,6 +2227,7 @@ def test_complete_redirects_for_collection(
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_1": PluginRouting(
                         action_plugin=None,
@@ -2052,6 +2265,7 @@ def test_complete_redirects_for_collection(
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_2": PluginRouting(
                         action_plugin=None,
@@ -2063,6 +2277,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_3": PluginRouting(
                         action_plugin=None,
@@ -2100,6 +2315,7 @@ def test_complete_redirects_for_collection(
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_1": PluginRouting(
                         action_plugin=None,
@@ -2115,6 +2331,7 @@ def test_complete_redirects_for_collection(
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_2": PluginRouting(
                         action_plugin=None,
@@ -2126,6 +2343,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_3": PluginRouting(
                         action_plugin=None,
@@ -2153,6 +2371,7 @@ def test_complete_redirects_for_collection(
                             removal_date=None,
                         ),
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_4": PluginRouting(
                         action_plugin=None,
@@ -2164,6 +2383,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_1": PluginRouting(
                         action_plugin=None,
@@ -2175,6 +2395,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_2": PluginRouting(
                         action_plugin=None,
@@ -2186,6 +2407,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "leave_chain_3": PluginRouting(
                         action_plugin=None,
@@ -2197,6 +2419,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
                 "lookup": {
@@ -2210,6 +2433,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_2": PluginRouting(
                         action_plugin=None,
@@ -2221,6 +2445,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "loop_3": PluginRouting(
                         action_plugin=None,
@@ -2232,6 +2457,7 @@ def test_complete_redirects_for_collection(
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_1": PluginRouting(
                         action_plugin=None,
@@ -2243,6 +2469,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_2": PluginRouting(
                         action_plugin=None,
@@ -2254,6 +2481,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "dead_chain_3": PluginRouting(
                         action_plugin=None,
@@ -2269,6 +2497,7 @@ def test_complete_redirects_for_collection(
                             removal_version=None,
                             removal_date=None,
                         ),
+                        redirect_by_symlink=False,
                     ),
                     "broken_chain_1": PluginRouting(
                         action_plugin=None,
@@ -2280,6 +2509,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "broken_chain_2": PluginRouting(
                         action_plugin=None,
@@ -2291,6 +2521,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
             },
@@ -2350,6 +2581,7 @@ def test_complete_redirects_for_collection(
                         redirect_error="Detected circular redirect",
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                     "chain_2": PluginRouting(
                         action_plugin=None,
@@ -2374,6 +2606,7 @@ def test_complete_redirects_for_collection(
                         redirect_error=None,
                         deprecation=None,
                         tombstone=None,
+                        redirect_by_symlink=False,
                     ),
                 },
             },
