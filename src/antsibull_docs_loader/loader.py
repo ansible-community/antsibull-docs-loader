@@ -375,7 +375,9 @@ def load_docs_from_python_doc_fragment_contents(
                     raise ValueError(
                         f"Fragment {fragment_name} is not a mapping, but {type(parsed_data)}"
                     )
-                fragments[fragment_name] = DocumentationFragment(data=parsed_data)
+                fragments[fragment_name] = DocumentationFragment(
+                    data=parsed_data, return_data=parsed_data
+                )
         return DocumentationFragments(fragments=fragments)
 
     return None

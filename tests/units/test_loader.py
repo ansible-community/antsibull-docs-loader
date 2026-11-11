@@ -579,8 +579,10 @@ class ModuleDocFragment:
 """,
         DocumentationFragments(
             fragments={
-                "DOCUMENTATION": DocumentationFragment(data={}),
-                "FOO": DocumentationFragment(data={"bar": "baz"}),
+                "DOCUMENTATION": DocumentationFragment(data={}, return_data={}),
+                "FOO": DocumentationFragment(
+                    data={"bar": "baz"}, return_data={"bar": "baz"}
+                ),
             }
         ),
     ),
