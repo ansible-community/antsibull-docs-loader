@@ -10,7 +10,6 @@ Data loader.
 from __future__ import annotations
 
 import ast
-import dataclasses
 import re
 import typing as t
 from collections.abc import Mapping, Sequence
@@ -20,6 +19,12 @@ from ._yaml import format_yaml as _format_yaml
 from ._yaml import load_yaml_data as _load_yaml_data
 from ._yaml import load_yaml_file as _load_yaml_file
 from .data import CollectionInfo
+from .documentation import (
+    Documentation,
+    DocumentationFragment,
+    DocumentationFragments,
+    RoleDocumentation,
+)
 
 EXAMPLES_FMT_RE = re.compile(r"^# fmt:\s+(\S+)")
 
@@ -69,14 +74,6 @@ def _iterate_targets(
     for target in assignment.targets:
         if isinstance(target, ast.Name):
             yield assignment.value, assignment.value.value, target.id
-
-
-@dataclasses.dataclass
-class Documentation:
-    documentation: Mapping[str, t.Any]
-    return_values: Mapping[str, t.Any] | None
-    examples: str | None
-    example_format: str
 
 
 @t.overload  # pragma: no cover
@@ -173,11 +170,11 @@ def load_docs_from_python_file(path: Path) -> Documentation | None:
 
 def _extract_yaml_section(
     root: Mapping[str, t.Any], section: str
-) -> Mapping[str, t.Any] | None:
+) -> dict[str, t.Any] | None:
     data = root.get(section)
     if data is None:
         return data
-    if not isinstance(data, Mapping):
+    if not isinstance(data, dict):
         raise ValueError(f"Expected {section} to be a mapping, got {type(data)}")
     return data
 
@@ -192,12 +189,10 @@ def _extract_examples(examples: t.Any) -> tuple[str, str] | None:
 
 
 def _extract_yaml_docs(root: Mapping[str, t.Any]) -> Documentation | None:
-    documentation: Mapping[str, t.Any] | None = _extract_yaml_section(
+    documentation: dict[str, t.Any] | None = _extract_yaml_section(
         root, DOCUMENTATION_SECTION
     )
-    return_values: Mapping[str, t.Any] | None = _extract_yaml_section(
-        root, RETURN_SECTION
-    )
+    return_values: dict[str, t.Any] | None = _extract_yaml_section(root, RETURN_SECTION)
     examples: str | None = None
     example_format: str = "yaml"
     ex = _extract_examples(root.get(EXAMPLES_SECTION))
@@ -269,11 +264,6 @@ def load_docs(candidates: Sequence[Path]) -> Documentation | None:
             if docs is not None:
                 return docs
     return None
-
-
-@dataclasses.dataclass
-class RoleDocumentation:
-    entrypoints: Mapping[str, Documentation]
 
 
 def _get_argspecs(root: t.Any) -> Mapping[str, t.Any] | None:
@@ -354,16 +344,6 @@ def load_docs_from_role_argspec_file(path: Path) -> RoleDocumentation | None:
         raise ValueError(f"Error while parsing {path}: {exc}") from exc
 
 
-@dataclasses.dataclass
-class DocumentationFragment:
-    data: Mapping[str, t.Any]
-
-
-@dataclasses.dataclass
-class DocumentationFragments:
-    fragments: Mapping[str, DocumentationFragment]
-
-
 def load_docs_from_python_doc_fragment_contents(
     contents: str, *, path: Path | None = None
 ) -> DocumentationFragments | None:
@@ -391,7 +371,7 @@ def load_docs_from_python_doc_fragment_contents(
                     ) from exc
                 if parsed_data is None:
                     parsed_data = {}
-                if not isinstance(parsed_data, Mapping):
+                if not isinstance(parsed_data, dict):
                     raise ValueError(
                         f"Fragment {fragment_name} is not a mapping, but {type(parsed_data)}"
                     )
@@ -422,17 +402,13 @@ def load_docs_from_python_doc_fragment_file(
 
 __all__ = (
     "load_collection_info",
-    "Documentation",
     "load_docs_from_python_contents",
     "load_docs_from_python_file",
     "load_docs_from_yaml_contents",
     "load_docs_from_yaml_file",
     "load_docs",
-    "RoleDocumentation",
     "load_docs_from_role_argspec_contents",
     "load_docs_from_role_argspec_file",
-    "DocumentationFragment",
-    "DocumentationFragments",
     "load_docs_from_python_doc_fragment_contents",
     "load_docs_from_python_doc_fragment_file",
 )

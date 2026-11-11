@@ -15,11 +15,13 @@ from pathlib import Path
 import pytest  # pylint: disable=import-error
 
 from antsibull_docs_loader.data import CollectionInfo
-from antsibull_docs_loader.loader import (
+from antsibull_docs_loader.documentation import (
     Documentation,
     DocumentationFragment,
     DocumentationFragments,
     RoleDocumentation,
+)
+from antsibull_docs_loader.loader import (
     load_collection_info,
     load_docs,
     load_docs_from_python_contents,
