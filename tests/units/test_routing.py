@@ -625,6 +625,8 @@ def test_load_routing_information_core_files(tmp_path: Path) -> None:
 
     (modules / "__init__.py").write_text("")
 
+    (modules / "async_wrapper.py").write_text("")
+
     (modules / "bar.py").write_text("")
 
     (modules / "_meh.py").write_text("")

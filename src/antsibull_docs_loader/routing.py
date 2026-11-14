@@ -418,12 +418,9 @@ def _process_symlink(
             redirect_by_symlink=True,
         )
     elif current.redirect is None:
-        print(path, "XXX")
         routing[plugin_type][cname] = dataclasses.replace(
             current, redirect=dfqcn, redirect_by_symlink=True
         )
-    else:
-        print(path, "YYY", current)
 
 
 def _find_regular_files(
@@ -458,6 +455,8 @@ def _find_regular_files(
             if collection_info.is_ansible_core:
                 # ansible-core exceptions
                 if plugin_type == "cache" and file == "base.py":
+                    continue
+                if plugin_type == "module" and file == "async_wrapper.py":
                     continue
             _add(pt_collection, comps=comps, path=path)
     return _extract_result(pt_collection, collection_name=collection_info.full_name)
