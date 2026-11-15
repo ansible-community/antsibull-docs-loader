@@ -557,6 +557,13 @@ def _get_self_name(method: ast.FunctionDef) -> str | None:
     return args[0].arg
 
 
+# ast.TryStar has been added in Python 3.11
+try:
+    _TRY: tuple[type[ast.Try], ...] = (ast.Try, ast.TryStar)  # type: ignore[assignment]
+except ImportError:
+    _TRY = (ast.Try,)
+
+
 def _get_returns(statements: Sequence[ast.stmt]) -> t.Generator[ast.Return]:
     for statement in statements:
         if isinstance(statement, ast.Return):
@@ -566,7 +573,7 @@ def _get_returns(statements: Sequence[ast.stmt]) -> t.Generator[ast.Return]:
             yield from _get_returns(statement.orelse)
         if isinstance(statement, ast.With):
             yield from _get_returns(statement.body)
-        if isinstance(statement, (ast.Try, ast.TryStar)):
+        if isinstance(statement, _TRY):
             yield from _get_returns(statement.body)
             for handler in statement.handlers:
                 yield from _get_returns(handler.body)
