@@ -813,7 +813,7 @@ class Foo:
 """,
         "Foo",
         "bar",
-        None,
+        {"x", "y"},
     ),
     (
         # Taken from ansible.utils.ip4_hex filter

@@ -628,12 +628,10 @@ def load_plugin_list_from_jinja2_plugin_contents(
                 )
                 if value is None:
                     continue
-                keys = set(value)
                 if candidate is None:
-                    candidate = keys
-                elif candidate != keys:
-                    # Mismatching choices
-                    return None
+                    candidate = set(value)
+                else:
+                    candidate.update(value)
             return candidate
 
     return None
