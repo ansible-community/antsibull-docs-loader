@@ -2,6 +2,7 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt
 # or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2021, Red Hat
 # SPDX-FileCopyrightText: 2026, Ansible Project
 
 """
@@ -32,6 +33,8 @@ from antsibull_docs_loader.loader import (
     load_docs_from_role_argspec_file,
     load_docs_from_yaml_contents,
     load_docs_from_yaml_file,
+    load_plugin_list_from_jinja2_plugin_contents,
+    load_plugin_list_from_jinja2_plugin_file,
 )
 
 
@@ -603,3 +606,281 @@ def test_load_docs_from_python_doc_fragment(
     file.write_text(content)
     docs = load_docs_from_python_doc_fragment_file(file)
     assert docs == expected_docs
+
+
+LOAD_PLUGIN_LIST_FROM_JINJA2_PLUGIN_DATA: list[
+    tuple[str, str, str, set[str] | None]
+] = [
+    (
+        "",
+        "Foo",
+        "bar",
+        None,
+    ),
+    (
+        """
+class Foo:
+    def bar(self):
+        return {"x": ...}
+""",
+        "Foo",
+        "bar",
+        {"x"},
+    ),
+    (
+        """
+class Foo:
+    def bar(self):
+        result = {"x": ...}
+        return result
+""",
+        "Foo",
+        "bar",
+        {"x"},
+    ),
+    (
+        """
+class Foo:
+    result = {"x": ...}
+
+    def bar(self):
+        return self.result
+""",
+        "Foo",
+        "bar",
+        {"x"},
+    ),
+    (
+        """
+class Foo:
+    result = {"x": ...}
+
+    def bar(self):
+        self.bazbam = 1
+        bam = self.asdf = baz = self.result
+        foo = self.asdf
+        meh = self.bazbam
+        return baz
+""",
+        "Foo",
+        "bar",
+        {"x"},
+    ),
+    (
+        """
+class Foo:
+    result = {"x": ...}
+
+    @staticmethod
+    def bar():
+        return Foo.result
+""",
+        "Foo",
+        "bar",
+        {"x"},
+    ),
+    (
+        """
+result = {"x": ...}
+
+class Foo:
+    def bam(self):
+        pass
+
+    def bar(self):
+        try:
+            return result
+        except:
+            return {"x": 1}
+""",
+        "Foo",
+        "bar",
+        {"x"},
+    ),
+    (
+        """
+result = {"x": ...}
+
+class Foo:
+    @staticmethod
+    def bar():
+        return result
+""",
+        "Foo",
+        "bar",
+        {"x"},
+    ),
+    (
+        """
+meh = {"y": ...}
+result = {"x": ..., **meh}
+
+class Foo:
+    @staticmethod
+    def bar():
+        return dict(z=1, **result)
+""",
+        "Foo",
+        "bar",
+        {"x", "y", "z"},
+    ),
+    (
+        """
+class Foo:
+    @staticmethod
+    def bar():
+        return {1: ...}
+""",
+        "Foo",
+        "bar",
+        None,
+    ),
+    (
+        """
+class Foo:
+    @meh
+    def bar(self, /):
+        return {"z": 1, **result}
+""",
+        "Foo",
+        "bar",
+        None,
+    ),
+    (
+        """
+class Foo:
+    def bar():
+        with baz():
+            return {"z": 1}
+""",
+        "Foo",
+        "bar",
+        {"z"},
+    ),
+    (
+        """
+class Foo:
+    @staticmethod
+    def bar():
+        return dict(z=1, **result)
+""",
+        "Foo",
+        "bar",
+        None,
+    ),
+    (
+        """
+class Foo:
+    @staticmethod
+    def bam():
+        return dict(z=1)
+""",
+        "Foo",
+        "bar",
+        None,
+    ),
+    (
+        """
+class Foo:
+    @staticmethod
+    def bar():
+        return
+""",
+        "Foo",
+        "bar",
+        None,
+    ),
+    (
+        """
+class Foo:
+    @staticmethod
+    def bar():
+        return 42
+""",
+        "Foo",
+        "bar",
+        None,
+    ),
+    (
+        """
+class Foo:
+    @staticmethod
+    def bar():
+        if True:
+            return {"x": ...}
+        else:
+            return {"y": ...}
+""",
+        "Foo",
+        "bar",
+        None,
+    ),
+    (
+        # Taken from ansible.utils.ip4_hex filter
+        """
+class FilterModule(object):
+    '''IP address and network manipulation filters'''
+
+    filter_map = {
+        # IP addresses and networks
+        "ip4_hex": _ip4_hex,
+    }
+
+    def filters(self):
+        '''ip4_hex filter'''
+        if HAS_NETADDR:
+            return self.filter_map
+        else:
+            return dict((f, partial(_need_netaddr, f)) for f in self.filter_map)
+""",
+        "FilterModule",
+        "filters",
+        {"ip4_hex"},
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "content, class_name, method_name, expected_plugins",
+    LOAD_PLUGIN_LIST_FROM_JINJA2_PLUGIN_DATA,
+)
+def test_load_plugin_list_from_jinja2_plugin(
+    content: str,
+    class_name: str,
+    method_name: str,
+    expected_plugins: set[str] | None,
+    tmp_path: Path,
+):
+    plugins = load_plugin_list_from_jinja2_plugin_contents(
+        content, class_name=class_name, method_name=method_name
+    )
+    assert expected_plugins == plugins
+
+    file = tmp_path / "foo.py"
+    file.write_text(content)
+    plugins = load_plugin_list_from_jinja2_plugin_file(
+        file, class_name=class_name, method_name=method_name
+    )
+    assert expected_plugins == plugins
+
+
+def test_load_plugin_list_from_jinja2_plugin_file(tmp_path: Path) -> None:
+    file = tmp_path / "foo.py"
+    with pytest.raises(
+        ValueError, match="^Error while reading .*/foo.py: .*No such file or directory"
+    ):
+        load_plugin_list_from_jinja2_plugin_file(
+            file, class_name="Foo", method_name="bar"
+        )
+
+    file.write_text("foo = {")
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^Error while parsing .*/foo.py: Python parsing failed:"
+            " ('{' was never closed|unexpected EOF while parsing)"
+        ),
+    ):
+        load_plugin_list_from_jinja2_plugin_file(
+            file, class_name="Foo", method_name="bar"
+        )

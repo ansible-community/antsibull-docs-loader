@@ -618,6 +618,18 @@ def test_load_routing_information_core_files(tmp_path: Path) -> None:
     (filters / "bam.yml").write_text("")
     (filters / "bam.yaml").write_text("")
 
+    (filters / "foobar.baz").write_text("")
+
+    (filters / "__init__.py").write_text("")
+
+    (filters / "baz.py").write_text("""
+class FilterModule:
+    def filters():
+        return {"baz": ..., "bam": ...}
+""")
+
+    (filters / "foobaz.py").symlink_to("baz.py")
+
     modules = tmp_path / "modules"
     modules.mkdir()
 
@@ -668,6 +680,20 @@ def test_load_routing_information_core_files(tmp_path: Path) -> None:
     ri = load_routing_information(core)
     assert ri == CollectionRouting(
         plugin_data={
+            "filter": {
+                "foobaz": PluginRouting(
+                    action_plugin=None,
+                    redirect="ansible.builtin.baz",
+                    redirect_chain=None,
+                    redirect_deprecations=None,
+                    redirect_tombstone=False,
+                    redirect_dead_end=False,
+                    redirect_error=None,
+                    deprecation=None,
+                    tombstone=None,
+                    redirect_by_symlink=True,
+                ),
+            },
             "module": {
                 "foobar1": PluginRouting(
                     action_plugin=None,
@@ -732,10 +758,11 @@ def test_load_routing_information_core_files(tmp_path: Path) -> None:
             "filter": {
                 ("bam",): File(
                     fqcn="ansible.builtin.bam",
-                    python_file=None,
+                    python_file=filters / "baz.py",
                     docs_candidates=[
                         filters / "bam.yaml",
                         filters / "bam.yml",
+                        filters / "baz.py",
                     ],
                 ),
                 ("bar",): File(
@@ -744,6 +771,13 @@ def test_load_routing_information_core_files(tmp_path: Path) -> None:
                     docs_candidates=[
                         filters / "bar.py",
                         filters / "bar.yml",
+                    ],
+                ),
+                ("baz",): File(
+                    fqcn="ansible.builtin.baz",
+                    python_file=filters / "baz.py",
+                    docs_candidates=[
+                        filters / "baz.py",
                     ],
                 ),
                 ("foo",): File(

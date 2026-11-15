@@ -26,6 +26,9 @@ from .ansible import (
     EDA_PLUGIN_TYPES,
     get_plugin_directory,
 )
+from .loader import (
+    load_plugin_list_from_jinja2_plugin_file as _load_plugin_list_from_jinja2_plugin_file,
+)
 
 if t.TYPE_CHECKING:
     from .ansible import PluginType
@@ -462,10 +465,77 @@ def _find_regular_files(
     return _extract_result(pt_collection, collection_name=collection_info.full_name)
 
 
+def _procss_jinja2_plugin_file(
+    collection: dict[tuple[str, ...], list[Path]],
+    *,
+    root_comps: tuple[str, ...],
+    comps: tuple[str, ...],
+    path: Path,
+    class_name: str,
+    method_name: str,
+) -> None:
+    plugins = _load_plugin_list_from_jinja2_plugin_file(
+        path, class_name=class_name, method_name=method_name
+    )
+    if plugins is None:
+        # Fallback: if we cannot enumerate Jinja2 plugins in this Python file, simply
+        # assume it defines a plugin with its own name.
+        _add(collection, comps=comps, path=path)
+    else:
+        for plugin in plugins:
+            _add(collection, comps=root_comps + (plugin,), path=path)
+
+
+def _find_jinja2_files(
+    *,
+    collection_info: CollectionInfo,
+    directory: Path,
+    plugin_type: PluginType,
+    routing: dict[PluginType, dict[str, PluginRouting]],
+) -> dict[tuple[str, ...], File]:
+    pt_collection: dict[tuple[str, ...], list[Path]] = {}
+    for root, _directories, files in os.walk(directory, followlinks=False):
+        root_path = Path(root)
+        root_comps = _get_components(root_path, directory)
+        for file in files:
+            if not file.endswith((".py", ".yml", ".yaml")):
+                continue
+            if file == "__init__.py":
+                continue
+            path = root_path / file
+            name = _get_name(path, collection_info=collection_info)
+            comps = root_comps + (name,)
+            if path.is_symlink():
+                _process_symlink(
+                    path=path,
+                    comps=comps,
+                    collection_info=collection_info,
+                    directory=directory,
+                    plugin_type=plugin_type,
+                    routing=routing,
+                )
+                continue
+            if file.endswith(".py"):
+                _procss_jinja2_plugin_file(
+                    pt_collection,
+                    root_comps=root_comps,
+                    comps=comps,
+                    path=path,
+                    class_name=(
+                        "FilterModule" if plugin_type == "filter" else "TestModule"
+                    ),
+                    method_name=("filters" if plugin_type == "filter" else "tests"),
+                )
+            else:
+                _add(pt_collection, comps=comps, path=path)
+    return _extract_result(pt_collection, collection_name=collection_info.full_name)
+
+
 def _find_files(
     collection_info: CollectionInfo,
     *,
     routing: dict[PluginType, dict[str, PluginRouting]],
+    correctly_enumerate_plugins: bool,
 ) -> dict[PluginType, dict[tuple[str, ...], File]]:
     result: dict[PluginType, dict[tuple[str, ...], File]] = {}
     plugin_types = (
@@ -482,6 +552,13 @@ def _find_files(
                 collection_info=collection_info,
                 directory=directory,
             )
+        elif plugin_type in ("filter", "test") and correctly_enumerate_plugins:
+            result[plugin_type] = _find_jinja2_files(
+                collection_info=collection_info,
+                directory=directory,
+                plugin_type=plugin_type,
+                routing=routing,
+            )
         else:
             result[plugin_type] = _find_regular_files(
                 collection_info=collection_info,
@@ -492,7 +569,9 @@ def _find_files(
     return result
 
 
-def load_routing_information(collection_info: CollectionInfo) -> CollectionRouting:
+def load_routing_information(
+    collection_info: CollectionInfo, *, correctly_enumerate_plugins: bool = True
+) -> CollectionRouting:
     """
     Load routing information for a single collection.
 
@@ -504,7 +583,11 @@ def load_routing_information(collection_info: CollectionInfo) -> CollectionRouti
     else:
         routing.update(_load_collection_routing_information(collection_info))
         routing.update(_load_eda_routing_information(collection_info))
-    files = _find_files(collection_info, routing=routing)
+    files = _find_files(
+        collection_info,
+        routing=routing,
+        correctly_enumerate_plugins=correctly_enumerate_plugins,
+    )
     return CollectionRouting(plugin_data=routing, files=files)
 
 
@@ -514,6 +597,7 @@ def collect_routing_information(
     handle_broken: (
         t.Callable[[CollectionInfo, Exception], CollectionRouting | None] | None
     ) = None,
+    correctly_enumerate_plugins: bool = True,
 ) -> dict[str, CollectionRouting]:
     """
     Load routing information for all collections sequentially.
@@ -527,7 +611,8 @@ def collect_routing_information(
     for collection_info in collection_infos.collections.values():
         try:
             result[collection_info.full_name] = load_routing_information(
-                collection_info
+                collection_info,
+                correctly_enumerate_plugins=correctly_enumerate_plugins,
             )
         except Exception as exc:  # pylint: disable=broad-exception-caught
             if handle_broken is None:

@@ -12,7 +12,7 @@ from __future__ import annotations
 import ast
 import re
 import typing as t
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
 from ._yaml import format_yaml as _format_yaml
@@ -66,14 +66,30 @@ def load_collection_info(collection_root: Path) -> CollectionInfo:
 
 def _iterate_targets(
     assignment: ast.Assign,
-) -> t.Generator[tuple[ast.Constant, str, str]]:
-    if not isinstance(assignment.value, ast.Constant):
-        return
-    if not isinstance(assignment.value.value, str):
-        return
+) -> t.Generator[tuple[ast.expr, str]]:
     for target in assignment.targets:
         if isinstance(target, ast.Name):
-            yield assignment.value, assignment.value.value, target.id
+            yield assignment.value, target.id
+
+
+def _str_constant(expression: ast.expr) -> str | None:
+    if not isinstance(expression, ast.Constant):
+        return None
+    if not isinstance(expression.value, str):
+        return None
+    return expression.value
+
+
+def _iterate_constant_string_assign_targets(
+    assignment: ast.Assign,
+) -> t.Generator[tuple[ast.Constant, str, str]]:
+    value = _str_constant(assignment.value)
+    if value is None:
+        return
+    assert isinstance(assignment.value, ast.Constant)  # guaranteed by _str_constant
+    for target in assignment.targets:
+        if isinstance(target, ast.Name):
+            yield assignment.value, value, target.id
 
 
 @t.overload  # pragma: no cover
@@ -124,7 +140,7 @@ def load_docs_from_python_contents(
         # We look for top-level assignments
         if not isinstance(child, ast.Assign):
             continue
-        for _constant, data, section in _iterate_targets(child):
+        for _constant, data, section in _iterate_constant_string_assign_targets(child):
             if section not in (DOCUMENTATION_SECTION, EXAMPLES_SECTION, RETURN_SECTION):
                 continue
 
@@ -362,7 +378,11 @@ def load_docs_from_python_doc_fragment_contents(
         for fragment in child.body:
             if not isinstance(fragment, ast.Assign):
                 continue
-            for _constant, data, fragment_name in _iterate_targets(fragment):
+            for (
+                _constant,
+                data,
+                fragment_name,
+            ) in _iterate_constant_string_assign_targets(fragment):
                 try:
                     parsed_data = _load_yaml_data(data)
                 except Exception as exc:
@@ -402,6 +422,241 @@ def load_docs_from_python_doc_fragment_file(
         raise ValueError(f"Error while parsing {path}: {exc}") from exc
 
 
+def _get_known(
+    expression: ast.expr,
+    *,
+    self_name: str | None,
+    known: dict[str, dict[str, t.Any]],
+    self_known: dict[str, dict[str, t.Any]],
+) -> dict[str, t.Any] | None:
+    # Check for <known>
+    if isinstance(expression, ast.Name):
+        return known.get(expression.id)
+    # Check for self.<known>
+    if (
+        self_name is None
+        or not isinstance(expression, ast.Attribute)
+        or not isinstance(expression.value, ast.Name)
+        or expression.value.id != self_name
+    ):
+        return None
+    return self_known.get(expression.attr)
+
+
+def _evaluate_dict_literal(
+    value: ast.Dict,
+    *,
+    self_name: str | None,
+    known: dict[str, dict[str, t.Any]],
+    self_known: dict[str, dict[str, t.Any]],
+) -> dict[str, t.Any] | None:
+    result = {}
+    for k, v in zip(value.keys, value.values):
+        if k is None:
+            known_value = _get_known(
+                v, self_name=self_name, known=known, self_known=self_known
+            )
+            if known_value is not None:
+                result.update(known_value)
+                continue
+            return None
+        kstr = _str_constant(k)
+        if kstr is None:
+            return None
+        result[kstr] = v
+    return result
+
+
+def _evaluate_dict_call(
+    value: ast.Call,
+    *,
+    self_name: str | None,
+    known: dict[str, dict[str, t.Any]],
+    self_known: dict[str, dict[str, t.Any]],
+) -> dict[str, t.Any] | None:
+    result = {}
+    for kv in value.keywords:
+        if kv.arg is not None:
+            result[kv.arg] = kv.value
+            continue
+        known_value = _get_known(
+            kv.value, self_name=self_name, known=known, self_known=self_known
+        )
+        if known_value is None:
+            return None
+        result.update(known_value)
+    return result
+
+
+def _get_dict_value(
+    expression: ast.expr,
+    *,
+    self_name: str | None,
+    known: dict[str, dict[str, t.Any]],
+    self_known: dict[str, dict[str, t.Any]],
+) -> dict[str, t.Any] | None:
+    if isinstance(expression, ast.Dict):
+        return _evaluate_dict_literal(
+            expression, self_name=self_name, known=known, self_known=self_known
+        )
+    if (
+        isinstance(expression, ast.Call)
+        and isinstance(expression.func, ast.Name)
+        and expression.func.id == "dict"
+        and not expression.args
+    ):
+        return _evaluate_dict_call(
+            expression, self_name=self_name, known=known, self_known=self_known
+        )
+    return _get_known(
+        expression,
+        self_name=self_name,
+        known=known,
+        self_known=self_known,
+    )
+
+
+def _get_dict_assignments(
+    node: Iterable[ast.stmt],
+    *,
+    self_name: str | None,
+    known: dict[str, dict[str, t.Any]],
+    self_known: dict[str, dict[str, t.Any]],
+) -> dict[str, dict[str, t.Any]]:
+    """
+    Find all assignments ``x = {...}`` where the dict literal keys are strings.
+    """
+    result: dict[str, dict[str, t.Any]] = {}
+    current_known = known.copy()
+    for child in node:
+        if not isinstance(child, ast.Assign):
+            continue
+        entry = _get_dict_value(
+            child.value, self_name=self_name, known=current_known, self_known=self_known
+        )
+        if entry is not None:
+            for _, name in _iterate_targets(child):
+                result[name] = entry
+                current_known[name] = entry
+    return result
+
+
+def _has_staticmethod(fdef: ast.FunctionDef) -> bool:
+    for decorator in fdef.decorator_list:
+        if isinstance(decorator, ast.Name) and decorator.id == "staticmethod":
+            return True
+    return False
+
+
+def _get_self_name(method: ast.FunctionDef) -> str | None:
+    if _has_staticmethod(method):
+        return None
+    args = method.args.posonlyargs + method.args.args
+    if not args:
+        return None
+    return args[0].arg
+
+
+def _get_returns(statements: Sequence[ast.stmt]) -> t.Generator[ast.Return]:
+    for statement in statements:
+        if isinstance(statement, ast.Return):
+            yield statement
+        if isinstance(statement, (ast.For, ast.While, ast.If)):
+            yield from _get_returns(statement.body)
+            yield from _get_returns(statement.orelse)
+        if isinstance(statement, ast.With):
+            yield from _get_returns(statement.body)
+        if isinstance(statement, (ast.Try, ast.TryStar)):
+            yield from _get_returns(statement.body)
+            for handler in statement.handlers:
+                yield from _get_returns(handler.body)
+            yield from _get_returns(statement.orelse)
+            yield from _get_returns(statement.finalbody)
+
+
+def load_plugin_list_from_jinja2_plugin_contents(
+    contents: str,
+    *,
+    path: Path | None = None,
+    class_name: str,
+    method_name: str,
+) -> set[str] | None:
+    """
+    Load the list of Jinja2 plugins from a filter or test plugin Python file's contents.
+    """
+    root = _parse(contents, path=path)
+
+    top_level_assignments = _get_dict_assignments(
+        root.body, self_name=None, known={}, self_known={}
+    )
+
+    for child in root.body:
+        # We look for top-level classes named ``class_name``.
+        if not isinstance(child, ast.ClassDef) or child.name != class_name:
+            continue
+        class_assignments = _get_dict_assignments(
+            child.body, self_name=None, known=top_level_assignments, self_known={}
+        )
+        for elt in child.body:
+            if not isinstance(elt, ast.FunctionDef) or elt.name != method_name:
+                continue
+            self_name = _get_self_name(elt) or class_name
+            method_assignments = _get_dict_assignments(
+                elt.body,
+                self_name=self_name,
+                known=top_level_assignments,
+                self_known=class_assignments,
+            )
+            candidate: set[str] | None = None
+            assignments = dict(top_level_assignments)
+            assignments.update(method_assignments)
+            for return_stmt in _get_returns(elt.body):
+                if return_stmt.value is None:
+                    return None
+                value = _get_dict_value(
+                    return_stmt.value,
+                    self_name=self_name,
+                    known=assignments,
+                    self_known=class_assignments,
+                )
+                if value is None:
+                    continue
+                keys = set(value)
+                if candidate is None:
+                    candidate = keys
+                elif candidate != keys:
+                    # Mismatching choices
+                    return None
+            return candidate
+
+    return None
+
+
+def load_plugin_list_from_jinja2_plugin_file(
+    path: Path,
+    *,
+    class_name: str,
+    method_name: str,
+) -> set[str] | None:
+    """
+    Load the list of Jinja2 plugins from a filter or test plugin Python file.
+    """
+    try:
+        with path.open("rt", encoding="utf-8") as f:
+            contents = f.read()
+    except Exception as exc:
+        raise ValueError(f"Error while reading {path}: {exc}") from exc
+    try:
+        return load_plugin_list_from_jinja2_plugin_contents(
+            contents,
+            path=path,
+            class_name=class_name,
+            method_name=method_name,
+        )
+    except Exception as exc:
+        raise ValueError(f"Error while parsing {path}: {exc}") from exc
+
+
 __all__ = (
     "load_collection_info",
     "load_docs_from_python_contents",
@@ -413,4 +668,6 @@ __all__ = (
     "load_docs_from_role_argspec_file",
     "load_docs_from_python_doc_fragment_contents",
     "load_docs_from_python_doc_fragment_file",
+    "load_plugin_list_from_jinja2_plugin_contents",
+    "load_plugin_list_from_jinja2_plugin_file",
 )
