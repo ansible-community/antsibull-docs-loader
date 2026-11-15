@@ -560,7 +560,7 @@ def _get_self_name(method: ast.FunctionDef) -> str | None:
 # ast.TryStar has been added in Python 3.11
 try:
     _TRY: tuple[type[ast.Try], ...] = (ast.Try, ast.TryStar)  # type: ignore[assignment]
-except ImportError:
+except AttributeError:
     _TRY = (ast.Try,)
 
 
