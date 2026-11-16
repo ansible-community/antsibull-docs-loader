@@ -727,7 +727,6 @@ def _complete_redirect(  # noqa: C901 # pylint: disable=too-many-branches
         prd = routing_data[next_coll].plugin_data.get(plugin_type)
         pd = prd.get(next_pn) if prd else None
         if pd is not None and pd.tombstone:
-            redirect_deprecations = ((next_name, pd.tombstone),)
             redirect_tombstone = True
             break
         if pd is None or pd.redirect is None:

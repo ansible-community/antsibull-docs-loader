@@ -41,6 +41,22 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         tombstone=None,
                         redirect_by_symlink=False,
                     ),
+                    "depr_bam": PluginRouting(
+                        action_plugin=None,
+                        redirect="foo.bar.bam",
+                        redirect_chain=None,
+                        redirect_deprecations=None,
+                        redirect_tombstone=False,
+                        redirect_dead_end=False,
+                        redirect_error=None,
+                        deprecation=RemovalData(
+                            warning_text="use bam directly",
+                            removal_version="2.0.0",
+                            removal_date=None,
+                        ),
+                        tombstone=None,
+                        redirect_by_symlink=False,
+                    ),
                     "self_loop": PluginRouting(
                         action_plugin=None,
                         redirect="foo.bar.self_loop",
@@ -263,7 +279,11 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         redirect_tombstone=False,
                         redirect_dead_end=False,
                         redirect_error=None,
-                        deprecation=None,
+                        deprecation=RemovalData(
+                            warning_text="this will be dead",
+                            removal_version=None,
+                            removal_date=None,
+                        ),
                         tombstone=None,
                         redirect_by_symlink=False,
                     ),
@@ -328,6 +348,13 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                         python_file=Path("collections/foo/bar/plugins/modules/baz.py"),
                         docs_candidates=[
                             Path("collections/foo/bar/plugins/modules/baz.py")
+                        ],
+                    ),
+                    ("bam",): File(
+                        fqcn="foo.bar.bam",
+                        python_file=Path("collections/foo/bar/plugins/modules/bam.py"),
+                        docs_candidates=[
+                            Path("collections/foo/bar/plugins/modules/bam.py")
                         ],
                     ),
                     ("chain_4",): File(
