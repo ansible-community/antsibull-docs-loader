@@ -557,7 +557,7 @@ def _get_self_name(method: ast.FunctionDef) -> str | None:
     return args[0].arg
 
 
-# ast.TryStar has been added in Python 3.11
+# ast.TryStar ('except*' syntax for handling ``ExceptionGroup``s) has been added in Python 3.11
 try:
     _TRY: tuple[type[ast.Try], ...] = (ast.Try, ast.TryStar)  # type: ignore[assignment]
 except AttributeError:
