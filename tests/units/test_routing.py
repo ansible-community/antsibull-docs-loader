@@ -1764,14 +1764,14 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
             },
             files={
                 "module": {
-                    ("foo", "bar", "baz"): File(
+                    ("baz",): File(
                         fqcn="foo.bar.baz",
                         python_file=Path("collections/foo/bar/plugins/modules/baz.py"),
                         docs_candidates=[
                             Path("collections/foo/bar/plugins/modules/baz.py")
                         ],
                     ),
-                    ("foo", "bar", "chain_4"): File(
+                    ("chain_4",): File(
                         fqcn="foo.bar.chain_4",
                         python_file=Path(
                             "collections/foo/bar/plugins/modules/chain_4.py"
@@ -2214,14 +2214,14 @@ def test_complete_redirects_for_collection(
             },
             files={
                 "module": {
-                    ("foo", "bar", "baz"): File(
+                    ("baz",): File(
                         fqcn="foo.bar.baz",
                         python_file=Path("collections/foo/bar/plugins/modules/baz.py"),
                         docs_candidates=[
                             Path("collections/foo/bar/plugins/modules/baz.py")
                         ],
                     ),
-                    ("foo", "bar", "chain_4"): File(
+                    ("chain_4",): File(
                         fqcn="foo.bar.chain_4",
                         python_file=Path(
                             "collections/foo/bar/plugins/modules/chain_4.py"
