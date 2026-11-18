@@ -264,7 +264,7 @@ def load_docs_from_yaml_file(path: Path) -> Documentation | None:
         raise ValueError(f"Error while parsing {path}: {exc}") from exc
 
 
-def load_docs(candidates: Sequence[Path]) -> Documentation | None:
+def load_docs(candidates: Sequence[Path]) -> tuple[Documentation, Path] | None:
     """
     Load documentation for a regular module/plugin.
 
@@ -274,11 +274,11 @@ def load_docs(candidates: Sequence[Path]) -> Documentation | None:
         if candidate.name.endswith(".py"):
             docs = load_docs_from_python_file(candidate)
             if docs is not None:
-                return docs
+                return docs, candidate
         if candidate.name.endswith((".yml", ".yaml")):
             docs = load_docs_from_yaml_file(candidate)
             if docs is not None:
-                return docs
+                return docs, candidate
     return None
 
 

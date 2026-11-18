@@ -381,15 +381,23 @@ def test_load_docs(tmp_path: Path) -> None:
         load_docs([py, yml])
 
     yml.write_text("DOCUMENTATION: {}")
-    assert load_docs([py, yml]) == Documentation(
+    docs_path = load_docs([py, yml])
+    assert docs_path is not None
+    docs, path = docs_path
+    assert docs == Documentation(
         documentation={},
         return_values=None,
         examples=None,
         example_format="yaml",
     )
+    assert path == yml
 
     py.write_text("DOCUMENTATION = 'short_description: hello'")
-    assert load_docs([py]) == Documentation(
+    docs_path = load_docs([py])
+    assert docs_path is not None
+    docs, path = docs_path
+    assert path == py
+    assert docs == Documentation(
         documentation={
             "short_description": "hello",
         },
