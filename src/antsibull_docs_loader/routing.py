@@ -329,10 +329,13 @@ def _extract_result(
     pt_collection: dict[tuple[str, ...], list[Path]],
     *,
     collection_name: str,
+    needs_python_file: bool,
 ) -> dict[tuple[str, ...], File]:
     pt_result: dict[tuple[str, ...], File] = {}
     for comp, paths in pt_collection.items():
         python_files = [path for path in paths if path.suffix == ".py"]
+        if needs_python_file and not python_files:
+            continue
         pt_result[comp] = File(
             fqcn=f"{collection_name}.{'.'.join(comp)}",
             python_file=python_files[0] if python_files else None,
@@ -364,7 +367,11 @@ def _find_roles(
         if not argspec.is_file():
             continue
         _add(pt_collection, comps=(entry.name,), path=argspec)
-    return _extract_result(pt_collection, collection_name=collection_info.full_name)
+    return _extract_result(
+        pt_collection,
+        collection_name=collection_info.full_name,
+        needs_python_file=False,
+    )
 
 
 def _get_name(path: Path, *, collection_info: CollectionInfo) -> str:
@@ -432,6 +439,7 @@ def _find_regular_files(
     directory: Path,
     plugin_type: PluginType,
     routing: dict[PluginType, dict[str, PluginRouting]],
+    needs_python_file: bool,
 ) -> dict[tuple[str, ...], File]:
     pt_collection: dict[tuple[str, ...], list[Path]] = {}
     for root, _directories, files in os.walk(directory, followlinks=False):
@@ -462,10 +470,14 @@ def _find_regular_files(
                 if plugin_type == "module" and file == "async_wrapper.py":
                     continue
             _add(pt_collection, comps=comps, path=path)
-    return _extract_result(pt_collection, collection_name=collection_info.full_name)
+    return _extract_result(
+        pt_collection,
+        collection_name=collection_info.full_name,
+        needs_python_file=needs_python_file,
+    )
 
 
-def _procss_jinja2_plugin_file(
+def _process_jinja2_plugin_file(
     collection: dict[tuple[str, ...], list[Path]],
     *,
     root_comps: tuple[str, ...],
@@ -516,7 +528,7 @@ def _find_jinja2_files(
                 )
                 continue
             if file.endswith(".py"):
-                _procss_jinja2_plugin_file(
+                _process_jinja2_plugin_file(
                     pt_collection,
                     root_comps=root_comps,
                     comps=comps,
@@ -528,7 +540,11 @@ def _find_jinja2_files(
                 )
             else:
                 _add(pt_collection, comps=comps, path=path)
-    return _extract_result(pt_collection, collection_name=collection_info.full_name)
+    return _extract_result(
+        pt_collection,
+        collection_name=collection_info.full_name,
+        needs_python_file=False,
+    )
 
 
 def _find_files(
@@ -565,6 +581,7 @@ def _find_files(
                 directory=directory,
                 plugin_type=plugin_type,
                 routing=routing,
+                needs_python_file=plugin_type != "module",
             )
     return result
 
