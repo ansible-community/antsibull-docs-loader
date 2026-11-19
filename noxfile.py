@@ -37,9 +37,16 @@ def install(session: nox.Session, *args, editable=False, **kwargs):
     python=["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"], allow_parallel=True
 )
 def test(session: nox.Session):
+    # ansible-core devel needs Python >= 3.13
+    needs_stable_core = session.python in {"3.9", "3.10", "3.11", "3.12"}
     install(
         session,
         ".[test, coverage]",
+        (
+            "ansible-core"
+            if needs_stable_core
+            else "https://github.com/ansible/ansible/archive/devel.tar.gz"
+        ),
         editable=True,
     )
     covfile = Path(session.create_tmp(), ".coverage")
