@@ -611,6 +611,8 @@ def test_load_routing_information_core_files(tmp_path: Path) -> None:
 
     (caches / "foocache.py").write_text("")
 
+    (caches / "barcache.yaml").write_text("")
+
     filters = plugins / "filter"
     filters.mkdir()
 
