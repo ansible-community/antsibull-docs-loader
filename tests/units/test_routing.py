@@ -634,7 +634,22 @@ class FilterModule:
         return {"baz": ..., "bam": ...}
 """)
 
-    (filters / "foobaz.py").symlink_to("baz.py")
+    (filters / "foobaz.py").symlink_to("bazfoo.py")
+    (filters / "bazfoo.py").symlink_to("baz.py")
+
+    (filters / "foobarbaz.py").symlink_to("/meh.py")
+
+    (filters / "foobarbam.py").symlink_to("../../../foo.py")
+
+    (filters / "loop1.py").symlink_to("loop1.py")
+
+    (filters / "loop1.yml").symlink_to("loop1.yml")
+
+    (filters / "loop2a.py").symlink_to("loop2b.py")
+    (filters / "loop2b.py").symlink_to("loop2a.py")
+
+    (filters / "loop2a.yml").symlink_to("loop2b.yml")
+    (filters / "loop2b.yml").symlink_to("loop2a.yml")
 
     modules = tmp_path / "modules"
     modules.mkdir()
@@ -652,6 +667,7 @@ class FilterModule:
     (modules / "_meh.yaml").write_text("")
 
     (modules / "foobar1.py").symlink_to("_meh.py")
+    (modules / "foobar1.yml").symlink_to("meh.yml")
 
     (modules / "_foobar2.py").symlink_to("_meh.py")
 
@@ -686,20 +702,6 @@ class FilterModule:
     ri = load_routing_information(core)
     assert ri == CollectionRouting(
         plugin_data={
-            "filter": {
-                "foobaz": PluginRouting(
-                    action_plugin=None,
-                    redirect="ansible.builtin.baz",
-                    redirect_chain=None,
-                    redirect_deprecations=None,
-                    redirect_tombstone=False,
-                    redirect_dead_end=False,
-                    redirect_error=None,
-                    deprecation=None,
-                    tombstone=None,
-                    redirect_by_symlink=True,
-                ),
-            },
             "module": {
                 "foobar1": PluginRouting(
                     action_plugin=None,
@@ -786,11 +788,25 @@ class FilterModule:
                         filters / "baz.py",
                     ],
                 ),
+                ("bazfoo",): File(
+                    fqcn="ansible.builtin.bazfoo",
+                    python_file=filters / "baz.py",
+                    docs_candidates=[
+                        filters / "baz.py",
+                    ],
+                ),
                 ("foo",): File(
                     fqcn="ansible.builtin.foo",
                     python_file=filters / "foo.py",
                     docs_candidates=[
                         filters / "foo.py",
+                    ],
+                ),
+                ("foobaz",): File(
+                    fqcn="ansible.builtin.foobaz",
+                    python_file=filters / "baz.py",
+                    docs_candidates=[
+                        filters / "baz.py",
                     ],
                 ),
             },
@@ -809,6 +825,13 @@ class FilterModule:
                     python_file=modules / "bar.py",
                     docs_candidates=[
                         modules / "bar.py",
+                    ],
+                ),
+                ("foobar1",): File(
+                    fqcn="ansible.builtin.foobar1",
+                    python_file=None,
+                    docs_candidates=[
+                        modules / "meh.yml",
                     ],
                 ),
                 ("subdir", "foo"): File(
