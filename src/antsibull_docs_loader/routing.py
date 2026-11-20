@@ -12,6 +12,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import os
+import stat
 import types
 import typing as t
 from collections.abc import Mapping
@@ -381,6 +382,45 @@ def _get_name(path: Path, *, collection_info: CollectionInfo) -> str:
     return name
 
 
+def _is_file(path: Path) -> bool:
+    # In Python 3.13+, this is simply: path.is_file(follow_symlinks=False)
+    try:
+        p = path.lstat()
+        return stat.S_ISREG(p.st_mode) or stat.S_ISLNK(p.st_mode)
+    except FileNotFoundError:
+        return False
+
+
+def _process_nonpython_symlink(
+    *,
+    path: Path,
+    comps: tuple[str, ...],
+    collection_info: CollectionInfo,
+    pt_collection: dict[tuple[str, ...], list[Path]],
+) -> None:
+    visited: set[Path] = {path}
+    while True:
+        link = path.readlink()
+        if link.is_absolute():
+            # Ignore absolute links. These should never appear in a collection.
+            return
+        destination = path.parent / link
+        if not _is_file(destination) or not destination.parent.is_relative_to(
+            collection_info.path
+        ):
+            # If the link points outside the collection dir,
+            # or does not point to a file, ignore it.
+            return
+        if destination in visited:
+            # Loop detected
+            return
+        visited.add(destination)
+        path = destination
+        if not path.is_symlink():
+            break
+    _add(pt_collection, comps=comps, path=path)
+
+
 def _process_symlink(
     *,
     path: Path,
@@ -389,7 +429,16 @@ def _process_symlink(
     directory: Path,
     plugin_type: PluginType,
     routing: dict[PluginType, dict[str, PluginRouting]],
+    pt_collection: dict[tuple[str, ...], list[Path]],
 ) -> None:
+    if not path.name.endswith(".py"):
+        _process_nonpython_symlink(
+            path=path,
+            comps=comps,
+            collection_info=collection_info,
+            pt_collection=pt_collection,
+        )
+        return
     link = path.readlink()
     if link.is_absolute():
         # Ignore absolute links. These should never appear in a collection.
@@ -397,7 +446,7 @@ def _process_symlink(
     destination = path.parent / link
     if (
         not destination.name.endswith(".py")
-        or not destination.is_file()
+        or not _is_file(destination)
         or not destination.parent.is_relative_to(directory)
     ):
         # If the link points outside the plugin type's base dir,
@@ -461,6 +510,7 @@ def _find_regular_files(
                     directory=directory,
                     plugin_type=plugin_type,
                     routing=routing,
+                    pt_collection=pt_collection,
                 )
                 continue
             if collection_info.is_ansible_core:
@@ -503,7 +553,6 @@ def _find_jinja2_files(
     collection_info: CollectionInfo,
     directory: Path,
     plugin_type: PluginType,
-    routing: dict[PluginType, dict[str, PluginRouting]],
 ) -> dict[tuple[str, ...], File]:
     pt_collection: dict[tuple[str, ...], list[Path]] = {}
     for root, _directories, files in os.walk(directory, followlinks=False):
@@ -518,13 +567,13 @@ def _find_jinja2_files(
             name = _get_name(path, collection_info=collection_info)
             comps = root_comps + (name,)
             if path.is_symlink():
-                _process_symlink(
+                # For Python files, the plugins it contains will be processed
+                # when the Python file it links to is processed.
+                _process_nonpython_symlink(
                     path=path,
                     comps=comps,
                     collection_info=collection_info,
-                    directory=directory,
-                    plugin_type=plugin_type,
-                    routing=routing,
+                    pt_collection=pt_collection,
                 )
                 continue
             if file.endswith(".py"):
@@ -573,7 +622,6 @@ def _find_files(
                 collection_info=collection_info,
                 directory=directory,
                 plugin_type=plugin_type,
-                routing=routing,
             )
         else:
             result[plugin_type] = _find_regular_files(
