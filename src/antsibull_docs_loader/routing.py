@@ -421,7 +421,7 @@ def _process_nonpython_symlink(
     _add(pt_collection, comps=comps, path=path)
 
 
-def _process_symlink(
+def _process_symlink_flexible(
     *,
     path: Path,
     comps: tuple[str, ...],
@@ -429,23 +429,15 @@ def _process_symlink(
     directory: Path,
     plugin_type: PluginType,
     routing: dict[PluginType, dict[str, PluginRouting]],
-    pt_collection: dict[tuple[str, ...], list[Path]],
+    allowed_link_extensions: tuple[str, ...],
 ) -> None:
-    if not path.name.endswith(".py"):
-        _process_nonpython_symlink(
-            path=path,
-            comps=comps,
-            collection_info=collection_info,
-            pt_collection=pt_collection,
-        )
-        return
     link = path.readlink()
     if link.is_absolute():
         # Ignore absolute links. These should never appear in a collection.
         return
     destination = path.parent / link
     if (
-        not destination.name.endswith(".py")
+        not destination.name.endswith(allowed_link_extensions)
         or not _is_file(destination)
         or not destination.parent.is_relative_to(directory)
     ):
@@ -480,6 +472,35 @@ def _process_symlink(
         routing[plugin_type][cname] = dataclasses.replace(
             current, redirect=dfqcn, redirect_by_symlink=True
         )
+
+
+def _process_symlink(
+    *,
+    path: Path,
+    comps: tuple[str, ...],
+    collection_info: CollectionInfo,
+    directory: Path,
+    plugin_type: PluginType,
+    routing: dict[PluginType, dict[str, PluginRouting]],
+    pt_collection: dict[tuple[str, ...], list[Path]],
+) -> None:
+    if not path.name.endswith(".py"):
+        _process_nonpython_symlink(
+            path=path,
+            comps=comps,
+            collection_info=collection_info,
+            pt_collection=pt_collection,
+        )
+        return
+    _process_symlink_flexible(
+        path=path,
+        comps=comps,
+        collection_info=collection_info,
+        directory=directory,
+        plugin_type=plugin_type,
+        routing=routing,
+        allowed_link_extensions=(".py",),
+    )
 
 
 def _find_regular_files(
@@ -553,6 +574,7 @@ def _find_jinja2_files(
     collection_info: CollectionInfo,
     directory: Path,
     plugin_type: PluginType,
+    routing: dict[PluginType, dict[str, PluginRouting]],
 ) -> dict[tuple[str, ...], File]:
     pt_collection: dict[tuple[str, ...], list[Path]] = {}
     for root, _directories, files in os.walk(directory, followlinks=False):
@@ -569,12 +591,16 @@ def _find_jinja2_files(
             if path.is_symlink():
                 # For Python files, the plugins it contains will be processed
                 # when the Python file it links to is processed.
-                _process_nonpython_symlink(
-                    path=path,
-                    comps=comps,
-                    collection_info=collection_info,
-                    pt_collection=pt_collection,
-                )
+                if not file.endswith(".py"):
+                    _process_symlink_flexible(
+                        path=path,
+                        comps=comps,
+                        collection_info=collection_info,
+                        directory=directory,
+                        plugin_type=plugin_type,
+                        routing=routing,
+                        allowed_link_extensions=(".yml", ".yaml"),
+                    )
                 continue
             if file.endswith(".py"):
                 _process_jinja2_plugin_file(
@@ -622,6 +648,7 @@ def _find_files(
                 collection_info=collection_info,
                 directory=directory,
                 plugin_type=plugin_type,
+                routing=routing,
             )
         else:
             result[plugin_type] = _find_regular_files(
