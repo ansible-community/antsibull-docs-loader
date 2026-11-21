@@ -880,6 +880,7 @@ class FilterModule:
                 ),
             },
         },
+        requires_ansible=None,
     )
 
 
@@ -911,6 +912,7 @@ def test_load_routing_information_collection(tmp_path: Path) -> None:
     assert routing_info.plugin_data == {}
 
     metadata.write_text("""---
+requires_ansible: ">= 2.22.0"
 plugin_routing:
   modules:
     formerly_core_ping:
@@ -944,6 +946,7 @@ plugin_routing:
 """)
     routing_info = load_routing_information(coll)
 
+    assert routing_info.requires_ansible == ">= 2.22.0"
     assert sorted(routing_info.plugin_data) == [
         "eda_event_filter",
         "eda_event_source",
@@ -1068,7 +1071,9 @@ def test_collect_routing_information(tmp_path: Path) -> None:
 
     ci = CollectionInfos.build([coll])
     ri = collect_routing_information(ci)
-    assert ri == {"foo.bar": CollectionRouting(plugin_data={}, files={})}
+    assert ri == {
+        "foo.bar": CollectionRouting(plugin_data={}, files={}, requires_ansible=None)
+    }
 
     metadata.write_text("""---
 plugin_routing: foo
@@ -1106,14 +1111,18 @@ plugin_routing: foo
     def return_ri(ci: CollectionInfo, exc: Exception) -> CollectionRouting | None:
         assert ci is coll
         assert str(exc).endswith(" must be a mapping, got <class 'str'>")
-        return CollectionRouting(plugin_data={"connection": {}}, files={})
+        return CollectionRouting(
+            plugin_data={"connection": {}}, files={}, requires_ansible=None
+        )
 
     metadata.write_text("""---
 plugin_routing: foo
 """)
     ri = collect_routing_information(ci, handle_broken=return_ri)
     assert ri == {
-        "foo.bar": CollectionRouting(plugin_data={"connection": {}}, files={})
+        "foo.bar": CollectionRouting(
+            plugin_data={"connection": {}}, files={}, requires_ansible=None
+        )
     }
 
 
@@ -1299,6 +1308,7 @@ plugin_routing:
                     ),
                 },
             },
+            requires_ansible=None,
         )
     }
 
@@ -1873,6 +1883,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                     ),
                 },
             },
+            requires_ansible=None,
         ),
         "bar.baz": CollectionRouting(
             plugin_data={
@@ -1939,6 +1950,7 @@ def test_complete_redirects(routing_info: Mapping[str, CollectionRouting]) -> No
                 },
             },
             files={},
+            requires_ansible=None,
         ),
     }
 
@@ -2350,6 +2362,7 @@ def test_complete_redirects_for_collection(
                     ),
                 },
             },
+            requires_ansible=None,
         ),
         "bar.baz": CollectionRouting(
             plugin_data={
@@ -2416,5 +2429,6 @@ def test_complete_redirects_for_collection(
                 },
             },
             files={},
+            requires_ansible=None,
         ),
     }

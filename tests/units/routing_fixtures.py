@@ -368,6 +368,7 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                     ),
                 },
             },
+            requires_ansible=None,
         ),
         "bar.baz": CollectionRouting(
             plugin_data={
@@ -399,5 +400,6 @@ def fixture_routing_info() -> Mapping[str, CollectionRouting]:
                 },
             },
             files={},
+            requires_ansible=None,
         ),
     }
