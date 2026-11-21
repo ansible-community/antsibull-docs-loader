@@ -1,0 +1,2 @@
+minor_changes:
+  - "Also load ``requires_ansible`` together with routing information for collections (https://github.com/ansible-community/antsibull-docs-loader/pull/14)."

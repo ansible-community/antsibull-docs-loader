@@ -74,6 +74,7 @@ class File:
 class CollectionRouting:
     plugin_data: dict[PluginType, dict[str, PluginRouting]]
     files: dict[PluginType, dict[tuple[str, ...], File]]
+    requires_ansible: str | None
 
 
 def _load_removal_data(
@@ -281,18 +282,20 @@ def _load_core_routing_information(
 
 def _load_collection_routing_information(
     collection_info: CollectionInfo,
-) -> dict[PluginType, dict[str, PluginRouting]]:
+) -> tuple[dict[PluginType, dict[str, PluginRouting]], str | None]:
     path = collection_info.path / _COLLECTION_ROUTING_INFO
     try:
         data = _load_yaml_file(path)
     except FileNotFoundError:
-        return {}
-    return _load_routing_information(
+        return {}, None
+    result = _load_routing_information(
         data,
         path=path,
         own_name=collection_info.full_name,
         get_real_plugin_type_name=_get_real_plugin_type_name,
     )
+    requires_ansible = data.get("requires_ansible") if data else None
+    return result, requires_ansible if isinstance(requires_ansible, str) else None
 
 
 def _load_eda_routing_information(
@@ -669,18 +672,22 @@ def load_routing_information(
 
     Note that most of the routing information is not yet present.
     """
-    routing = {}
+    requires_ansible: str | None = None
     if collection_info.is_ansible_core:
-        routing.update(_load_core_routing_information(collection_info.path))
+        routing = _load_core_routing_information(collection_info.path)
     else:
-        routing.update(_load_collection_routing_information(collection_info))
+        routing, requires_ansible = _load_collection_routing_information(
+            collection_info
+        )
         routing.update(_load_eda_routing_information(collection_info))
     files = _find_files(
         collection_info,
         routing=routing,
         correctly_enumerate_plugins=correctly_enumerate_plugins,
     )
-    return CollectionRouting(plugin_data=routing, files=files)
+    return CollectionRouting(
+        plugin_data=routing, files=files, requires_ansible=requires_ansible
+    )
 
 
 def collect_routing_information(
