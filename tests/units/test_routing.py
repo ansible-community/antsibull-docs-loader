@@ -661,13 +661,21 @@ class FilterModule:
     (modules / "async_wrapper.py").write_text("")
 
     (modules / "bar.py").write_text("")
+    (modules / "bar.yml").symlink_to("/foobar.yml")
+    (modules / "bar.yaml").symlink_to("does-not-exist.yml")
 
     (modules / "_meh.py").write_text("")
     (modules / "meh.yml").write_text("")
     (modules / "_meh.yaml").write_text("")
 
+    (modules / "abcdef.py").write_text("")
+    (modules / "abcdef.yml").symlink_to("abcdef2.yml")
+
+    (modules / "abcdef2.yml").symlink_to("abcdef.yml")
+
     (modules / "foobar1.py").symlink_to("_meh.py")
     (modules / "foobar1.yml").symlink_to("meh.yml")
+    (modules / "foobar1.yaml").symlink_to("foobar1.yaml")
 
     (modules / "_foobar2.py").symlink_to("_meh.py")
 
@@ -702,6 +710,44 @@ class FilterModule:
     ri = load_routing_information(core)
     assert ri == CollectionRouting(
         plugin_data={
+            "filter": {
+                "loop1": PluginRouting(
+                    action_plugin=None,
+                    redirect="ansible.builtin.loop1",
+                    redirect_chain=None,
+                    redirect_deprecations=None,
+                    redirect_tombstone=False,
+                    redirect_dead_end=False,
+                    redirect_error=None,
+                    deprecation=None,
+                    tombstone=None,
+                    redirect_by_symlink=True,
+                ),
+                "loop2a": PluginRouting(
+                    action_plugin=None,
+                    redirect="ansible.builtin.loop2b",
+                    redirect_chain=None,
+                    redirect_deprecations=None,
+                    redirect_tombstone=False,
+                    redirect_dead_end=False,
+                    redirect_error=None,
+                    deprecation=None,
+                    tombstone=None,
+                    redirect_by_symlink=True,
+                ),
+                "loop2b": PluginRouting(
+                    action_plugin=None,
+                    redirect="ansible.builtin.loop2a",
+                    redirect_chain=None,
+                    redirect_deprecations=None,
+                    redirect_tombstone=False,
+                    redirect_dead_end=False,
+                    redirect_error=None,
+                    deprecation=None,
+                    tombstone=None,
+                    redirect_by_symlink=True,
+                ),
+            },
             "module": {
                 "foobar1": PluginRouting(
                     action_plugin=None,
@@ -788,13 +834,6 @@ class FilterModule:
                         filters / "baz.py",
                     ],
                 ),
-                ("bazfoo",): File(
-                    fqcn="ansible.builtin.bazfoo",
-                    python_file=filters / "baz.py",
-                    docs_candidates=[
-                        filters / "baz.py",
-                    ],
-                ),
                 ("foo",): File(
                     fqcn="ansible.builtin.foo",
                     python_file=filters / "foo.py",
@@ -802,15 +841,15 @@ class FilterModule:
                         filters / "foo.py",
                     ],
                 ),
-                ("foobaz",): File(
-                    fqcn="ansible.builtin.foobaz",
-                    python_file=filters / "baz.py",
-                    docs_candidates=[
-                        filters / "baz.py",
-                    ],
-                ),
             },
             "module": {
+                ("abcdef",): File(
+                    fqcn="ansible.builtin.abcdef",
+                    python_file=modules / "abcdef.py",
+                    docs_candidates=[
+                        modules / "abcdef.py",
+                    ],
+                ),
                 ("meh",): File(
                     fqcn="ansible.builtin.meh",
                     python_file=modules / "_meh.py",
