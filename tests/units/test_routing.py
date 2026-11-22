@@ -927,6 +927,10 @@ plugin_routing:
     bar: {}
     meh:
       action_plugin: foo
+    redirsym1:
+      redirect: foo.bar.target_1
+    redirsym2:
+      redirect: foo.bar.target_1
 """)
     eda_runtime.write_text("""---
 plugin_routing:
@@ -944,6 +948,20 @@ plugin_routing:
   i-dont-care:
     meh:
 """)
+
+    plugins = tmp_path / "plugins"
+    plugins.mkdir()
+
+    modules = plugins / "modules"
+    modules.mkdir()
+
+    (modules / "redirsym1.py").symlink_to("target_1.py")
+
+    (modules / "redirsym2.py").symlink_to("target_2.py")
+
+    (modules / "target_1.py").write_text("")
+    (modules / "target_2.py").write_text("")
+
     routing_info = load_routing_information(coll)
 
     assert routing_info.requires_ansible == ">= 2.22.0"
@@ -1008,6 +1026,30 @@ plugin_routing:
         "meh": PluginRouting(
             action_plugin="foo",
             redirect=None,
+            redirect_chain=None,
+            redirect_deprecations=None,
+            redirect_tombstone=False,
+            redirect_dead_end=False,
+            redirect_error=None,
+            deprecation=None,
+            tombstone=None,
+            redirect_by_symlink=False,
+        ),
+        "redirsym1": PluginRouting(
+            action_plugin=None,
+            redirect="foo.bar.target_1",
+            redirect_chain=None,
+            redirect_deprecations=None,
+            redirect_tombstone=False,
+            redirect_dead_end=False,
+            redirect_error=None,
+            deprecation=None,
+            tombstone=None,
+            redirect_by_symlink=True,
+        ),
+        "redirsym2": PluginRouting(
+            action_plugin=None,
+            redirect="foo.bar.target_1",
             redirect_chain=None,
             redirect_deprecations=None,
             redirect_tombstone=False,
