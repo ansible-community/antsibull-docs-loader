@@ -1,0 +1,2 @@
+bugfixes:
+  - "Fix bug in routing code which did not update collection routing data (https://github.com/ansible-community/antsibull-docs-loader/pull/15)."
