@@ -226,7 +226,7 @@ TEST_RESOLVE_DATA: list[tuple[str, PluginType, ResolveResult]] = [
         "bar.baz.chain_2",
         "module",
         ResolveResult(
-            status=Resolved.NOT_FOUND,
+            status=Resolved.FOUND,
             fqcn="foo.bar.chain_4",
             deprecations=[
                 (
@@ -240,7 +240,13 @@ TEST_RESOLVE_DATA: list[tuple[str, PluginType, ResolveResult]] = [
             ],
             tombstone=None,
             error=None,
-            resolved=None,
+            resolved=File(
+                fqcn="foo.bar.chain_4",
+                python_file=Path("collections/foo/bar/plugins/modules/chain_4.py"),
+                docs_candidates=[
+                    Path("collections/foo/bar/plugins/modules/chain_4.py")
+                ],
+            ),
         ),
     ),
 ]

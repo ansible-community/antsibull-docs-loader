@@ -67,11 +67,12 @@ def _handle_redirect(
     collection_routing: CollectionRouting,
     routing: PluginRouting,
     deprecations: list[tuple[str, RemovalData]],
-) -> tuple[str, list[str], ResolveResult | None]:
+) -> tuple[str, list[str], CollectionRouting, ResolveResult | None]:
     if routing.tombstone is not None:
         return (
             fqcn,
             parts,
+            collection_routing,
             ResolveResult(
                 status=Resolved.TOMBSTONE,
                 fqcn=fqcn,
@@ -95,6 +96,7 @@ def _handle_redirect(
                 return (
                     fqcn,
                     parts,
+                    collection_routing,
                     ResolveResult(
                         status=Resolved.COLLECTION_MISSING,
                         fqcn=fqcn,
@@ -113,6 +115,7 @@ def _handle_redirect(
         return (
             fqcn,
             parts,
+            collection_routing,
             ResolveResult(
                 status=Resolved.REDIRECT_ERROR,
                 fqcn=fqcn,
@@ -123,10 +126,10 @@ def _handle_redirect(
             ),
         )
     if not is_routing:
-        return fqcn, parts, None
+        return fqcn, parts, collection_routing, None
     routing_opt = _get_routing(collection_routing, fqcn=parts, plugin_type=plugin_type)
     if routing_opt is None:
-        return fqcn, parts, None
+        return fqcn, parts, collection_routing, None
     return _handle_redirect(
         routing_data=routing_data,
         fqcn=fqcn,
@@ -164,7 +167,7 @@ def resolve(
         )
     routing = _get_routing(collection_routing, fqcn=parts, plugin_type=plugin_type)
     if routing is not None:
-        fqcn, parts, result = _handle_redirect(
+        fqcn, parts, collection_routing, result = _handle_redirect(
             routing_data=routing_data,
             fqcn=fqcn,
             parts=parts,
