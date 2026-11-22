@@ -471,7 +471,7 @@ def _process_symlink_flexible(
             tombstone=None,
             redirect_by_symlink=True,
         )
-    elif current.redirect is None:
+    elif current.redirect is None or current.redirect == dfqcn:
         routing[plugin_type][cname] = dataclasses.replace(
             current, redirect=dfqcn, redirect_by_symlink=True
         )
