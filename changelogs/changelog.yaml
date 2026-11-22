@@ -7,3 +7,19 @@ releases:
     fragments:
       - 0.1.0.yml
     release_date: '2026-11-19'
+  1.0.0:
+    changes:
+      bugfixes:
+        - Fix bug in routing code which did not update collection routing data (https://github.com/ansible-community/antsibull-docs-loader/pull/15).
+        - Improve handling of symlinks for collection plugins (https://github.com/ansible-community/antsibull-docs-loader/pull/12,
+          https://github.com/ansible-community/antsibull-docs-loader/pull/13, https://github.com/ansible-community/antsibull-docs-loader/pull/16).
+      minor_changes:
+        - Also load ``requires_ansible`` together with routing information for collections
+          (https://github.com/ansible-community/antsibull-docs-loader/pull/14).
+      release_summary: First stable release.
+    fragments:
+      - 1.0.0.yml
+      - 12-redirects.yml
+      - 14-requires_ansible.yml
+      - 15-routing.yml
+    release_date: '2026-11-22'

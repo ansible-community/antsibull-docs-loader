@@ -1,2 +1,0 @@
-bugfixes:
-  - "Improve handling of symlinks for collection plugins (https://github.com/ansible-community/antsibull-docs-loader/pull/12, https://github.com/ansible-community/antsibull-docs-loader/pull/13, https://github.com/ansible-community/antsibull-docs-loader/pull/16)."
