@@ -10,21 +10,54 @@ YAML loading.
 
 from __future__ import annotations
 
+import copy
 import io
 import typing as t
 from pathlib import Path
 
 import yaml
 
-_SafeLoader: t.Any
+_SafeLoaderBase: t.Any
 _SafeDumper: t.Any
 try:
     # use C version if possible for speedup
     from yaml import CSafeDumper as _SafeDumper
-    from yaml import CSafeLoader as _SafeLoader
+    from yaml import CSafeLoader as _SafeLoaderBase
 except ImportError:  # pragma: no cover
     from yaml import SafeDumper as _SafeDumper
-    from yaml import SafeLoader as _SafeLoader
+    from yaml import SafeLoader as _SafeLoaderBase
+
+
+def _construct_untagged(loader: t.Any, node: yaml.Node) -> t.Any:
+    """
+    Construct ``node``'s value as if it were not tagged, the same way that
+    ansible-core's ``AnsibleConstructor._resolve_and_construct_object()`` does.
+    """
+    # copied to avoid mutating the node, which trips the recursion check
+    node = copy.copy(node)
+    node.tag = loader.resolve(type(node), node.value, (True, False))
+    return loader.construct_object(node, deep=True)
+
+
+class _SafeLoader(_SafeLoaderBase):
+    """
+    Safe YAML loader which also understands ansible-core's YAML tags.
+    """
+
+
+# These tags only affect how ansible-core treats a value at runtime, so the
+# values are loaded as-is. !vault values are kept as ciphertext, not decrypted.
+_SafeLoader.add_constructor("!unsafe", _construct_untagged)
+_SafeLoader.add_constructor("!vault", _construct_untagged)
+_SafeLoader.add_constructor("!vault-encrypted", _construct_untagged)
+
+# Legacy aliases that ansible-core maps as well.
+_SafeLoader.add_constructor(
+    "tag:yaml.org,2002:python/dict", _SafeLoaderBase.construct_yaml_map
+)
+_SafeLoader.add_constructor(
+    "tag:yaml.org,2002:python/unicode", _SafeLoaderBase.construct_yaml_str
+)
 
 
 def load_yaml_file(path: Path) -> t.Any:
