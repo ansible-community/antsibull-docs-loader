@@ -1,0 +1,5 @@
+bugfixes:
+  - "Support ansible-core's custom YAML tags (``!unsafe``, ``!vault``, ``!vault-encrypted``), and
+    the legacy ``python/dict`` and ``python/unicode`` tag aliases, when loading YAML files. Loading
+    a file using one of them failed with ``could not determine a constructor for the tag``
+    (https://github.com/ansible-community/antsibull-docs-loader/pull/17)."
